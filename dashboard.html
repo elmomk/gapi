@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garmin API Dashboard</title>
+<style>
+  :root {
+    --bg: #0a0e17; --surface: #131a2b; --border: #1e2a42;
+    --text: #e0e6f0; --dim: #6b7a99; --accent: #00d4aa;
+    --good: #00d4aa; --warn: #ff6b8a; --neutral: #4a9eff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', monospace; background: var(--bg); color: var(--text); padding: 20px; }
+  h1 { color: var(--accent); font-size: 1.4em; margin-bottom: 4px; }
+  .subtitle { color: var(--dim); font-size: 0.85em; margin-bottom: 20px; }
+  .config { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  .config label { color: var(--dim); font-size: 0.75em; display: block; margin-bottom: 4px; }
+  .config input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 4px; font-family: inherit; font-size: 0.85em; }
+  .config input.wide { width: 280px; }
+  .config input.med { width: 320px; }
+  .config input.sm { width: 80px; text-align: center; }
+  button { background: var(--accent); color: var(--bg); border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; font-family: inherit; font-weight: bold; font-size: 0.85em; }
+  button:hover { opacity: 0.85; }
+  button.secondary { background: var(--border); color: var(--text); }
+  button.sm { padding: 6px 12px; font-size: 0.75em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card .label { color: var(--dim); font-size: 0.7em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .card .value { font-size: 1.8em; font-weight: bold; }
+  .card .baseline { color: var(--dim); font-size: 0.75em; margin-top: 4px; }
+  .card .delta { font-size: 0.75em; margin-top: 2px; }
+  .delta.good { color: var(--good); }
+  .delta.warn { color: var(--warn); }
+  .delta.neutral { color: var(--neutral); }
+  .section-title { color: var(--dim); font-size: 0.8em; text-transform: uppercase; letter-spacing: 2px; margin: 20px 0 12px; display: flex; align-items: center; gap: 12px; }
+  .range-controls { display: flex; gap: 6px; align-items: center; }
+  .range-controls button { padding: 4px 10px; font-size: 0.75em; }
+  .range-controls button.active { background: var(--accent); }
+  .range-controls button:not(.active) { background: var(--border); color: var(--text); }
+  .range-controls input[type=range] { width: 160px; accent-color: var(--accent); }
+  .range-label { color: var(--text); font-size: 0.85em; font-weight: bold; min-width: 60px; }
+  .chart-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+  .chart-row { display: flex; align-items: end; gap: 2px; height: 120px; }
+  .chart-bar { flex: 1; background: var(--accent); border-radius: 2px 2px 0 0; min-width: 2px; position: relative; opacity: 0.7; transition: opacity 0.2s; }
+  .chart-bar:hover { opacity: 1; }
+  .chart-bar .tip { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--bg); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 0.7em; white-space: nowrap; z-index: 10; }
+  .chart-bar:hover .tip { display: block; }
+  .chart-labels { display: flex; gap: 2px; margin-top: 4px; }
+  .chart-labels span { flex: 1; text-align: center; font-size: 0.55em; color: var(--dim); min-width: 2px; overflow: hidden; }
+  .chart-title { color: var(--text); font-size: 0.85em; margin-bottom: 12px; display: flex; justify-content: space-between; }
+  .chart-title .avg { color: var(--dim); font-size: 0.85em; }
+  .status { padding: 8px 16px; border-radius: 4px; font-size: 0.8em; margin-bottom: 16px; }
+  .status.ok { background: #0a2a1f; color: var(--good); border: 1px solid #1a4a3f; }
+  .status.err { background: #2a0a1a; color: var(--warn); border: 1px solid #4a1a2f; }
+  .status.loading { background: #0a1a2a; color: var(--neutral); border: 1px solid #1a2a4a; }
+  .activity { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  .activity .name { font-weight: bold; font-size: 0.9em; }
+  .activity .meta { color: var(--dim); font-size: 0.75em; }
+  .activity .stats { text-align: right; font-size: 0.8em; }
+</style>
+</head>
+<body>
+
+<h1>GARMIN API DASHBOARD</h1>
+<p class="subtitle">Real-time health data from garmin_api service</p>
+
+<div class="config">
+  <div>
+    <label>API URL</label>
+    <input id="apiUrl" class="wide" value="http://localhost:3000">
+  </div>
+  <div>
+    <label>API Key</label>
+    <input id="apiKey" class="med" type="password" value="">
+  </div>
+  <div>
+    <label>User ID</label>
+    <input id="userId" class="med" value="">
+  </div>
+  <div>
+    <button onclick="loadAll()">Load</button>
+    <button class="secondary" onclick="triggerSync()">Sync Now</button>
+  </div>
+</div>
+
+<div id="statusBar"></div>
+
+<div class="section-title">Today's Vitals</div>
+<div class="grid" id="vitalsGrid"></div>
+
+<div class="section-title">
+  <span>Trends</span>
+  <div class="range-controls">
+    <button class="sm" onclick="setDays(7)">7d</button>
+    <button class="sm" onclick="setDays(14)">14d</button>
+    <button class="sm active" onclick="setDays(30)">30d</button>
+    <button class="sm" onclick="setDays(90)">90d</button>
+    <button class="sm" onclick="setDays(180)">180d</button>
+    <button class="sm" onclick="setDays(365)">1y</button>
+    <input type="range" id="daysSlider" min="1" max="365" value="30" oninput="onSlider(this.value)">
+    <span class="range-label" id="daysLabel">30 days</span>
+  </div>
+</div>
+<div id="charts"></div>
+
+<div class="section-title">Today's Activities</div>
+<div id="activities"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let currentDays = 30;
+let chartData = [];
+
+const api = (path) => fetch(`${$('apiUrl').value}/api/v1${path}`, {
+  headers: { 'X-API-Key': $('apiKey').value }
+}).then(r => r.ok ? r.json() : Promise.reject(r.status));
+
+function status(msg, type = 'loading') {
+  $('statusBar').innerHTML = `<div class="status ${type}">${msg}</div>`;
+}
+
+function setDays(n) {
+  currentDays = n;
+  $('daysSlider').value = n;
+  $('daysLabel').textContent = n >= 365 ? '1 year' : `${n} days`;
+  document.querySelectorAll('.range-controls button').forEach(b => {
+    b.classList.toggle('active', parseInt(b.textContent) === n || (b.textContent === '1y' && n === 365));
+  });
+  loadCharts();
+}
+
+function onSlider(val) {
+  currentDays = parseInt(val);
+  $('daysLabel').textContent = currentDays >= 365 ? '1 year' : `${currentDays} days`;
+  document.querySelectorAll('.range-controls button').forEach(b => b.classList.remove('active'));
+  loadCharts();
+}
+
+function deviation(today, baseline, higherIsBetter = true) {
+  if (today == null || baseline == null || baseline === 0) return { cls: 'neutral', text: 'no baseline' };
+  const pct = ((today - baseline) / baseline * 100).toFixed(0);
+  const better = higherIsBetter ? today >= baseline * 0.9 : today <= baseline * 1.1;
+  return { cls: better ? 'good' : 'warn', text: `${pct > 0 ? '+' : ''}${pct}% vs baseline` };
+}
+
+function vitalCard(label, value, unit, baseline, higherIsBetter = true) {
+  const d = deviation(value, baseline, higherIsBetter);
+  const displayVal = value != null ? (typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(1) : value) : '—';
+  const blText = baseline != null ? `baseline: ${typeof baseline === 'number' && !Number.isInteger(baseline) ? baseline.toFixed(1) : baseline}` : '';
+  return `<div class="card">
+    <div class="label">${label}</div>
+    <div class="value">${displayVal}<span style="font-size:0.4em;color:var(--dim)"> ${unit}</span></div>
+    <div class="baseline">${blText}</div>
+    <div class="delta ${d.cls}">${d.text}</div>
+  </div>`;
+}
+
+function barChart(title, data, key, color = 'var(--accent)') {
+  const vals = data.map(d => d[key]).filter(v => v != null);
+  if (vals.length === 0) return '';
+  const max = Math.max(...vals);
+  const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+  const showEvery = data.length > 60 ? Math.ceil(data.length / 30) : data.length > 30 ? 2 : 1;
+  const bars = data.map(d => {
+    const v = d[key];
+    if (v == null) return `<div class="chart-bar" style="height:0;background:var(--border)"></div>`;
+    const h = max > 0 ? (v / max * 100) : 0;
+    return `<div class="chart-bar" style="height:${h}%;background:${color}"><div class="tip">${d.date}: ${typeof v === 'number' && !Number.isInteger(v) ? v.toFixed(1) : v}</div></div>`;
+  }).join('');
+  const labels = data.map((d, i) => {
+    const dt = d.date || '';
+    const show = i % showEvery === 0;
+    return `<span>${show ? dt.slice(5) : ''}</span>`;
+  }).join('');
+  const avgStr = typeof avg === 'number' ? (Number.isInteger(avg) ? avg : avg.toFixed(1)) : avg;
+  return `<div class="chart-container"><div class="chart-title"><span>${title}</span><span class="avg">avg: ${avgStr}</span></div><div class="chart-row">${bars}</div><div class="chart-labels">${labels}</div></div>`;
+}
+
+async function loadVitals() {
+  const uid = $('userId').value;
+  const v = await api(`/users/${uid}/vitals`);
+  $('vitalsGrid').innerHTML = [
+    vitalCard('HRV', v.hrv_last_night, 'ms', v.baseline_hrv, true),
+    vitalCard('Resting HR', v.resting_heart_rate, 'bpm', v.baseline_rhr, false),
+    vitalCard('Sleep Score', v.sleep_score, '', v.baseline_sleep, true),
+    vitalCard('Sleep', v.sleep_hours, 'hrs', null, true),
+    vitalCard('Stress', v.avg_stress, '', v.baseline_stress, false),
+    vitalCard('Body Battery', v.body_battery_high, '', v.baseline_battery, true),
+    vitalCard('Training Readiness', v.training_readiness, '', null, true),
+    vitalCard('Steps', v.steps, '', null, true),
+  ].join('');
+}
+
+async function loadCharts() {
+  const uid = $('userId').value;
+  const end = new Date().toISOString().slice(0, 10);
+  const start = new Date(Date.now() - currentDays * 86400000).toISOString().slice(0, 10);
+  const data = await api(`/users/${uid}/daily?start=${start}&end=${end}`);
+  chartData = data;
+  $('charts').innerHTML = [
+    barChart('HRV (ms)', data, 'hrv_last_night', '#00d4aa'),
+    barChart('Resting Heart Rate (bpm)', data, 'resting_heart_rate', '#ff6b8a'),
+    barChart('Sleep Score', data, 'sleep_score', '#4a9eff'),
+    barChart('Body Battery Peak', data, 'body_battery_high', '#ffb347'),
+    barChart('Stress', data, 'avg_stress', '#ff6b8a'),
+    barChart('Steps', data, 'steps', '#00d4aa'),
+    barChart('Training Readiness', data, 'training_readiness', '#4a9eff'),
+  ].join('');
+}
+
+async function loadActivities() {
+  const uid = $('userId').value;
+  const today = new Date().toISOString().slice(0, 10);
+  try {
+    const data = await api(`/users/${uid}/daily?date=${today}`);
+    if (!data.activities_json) { $('activities').innerHTML = '<div style="color:var(--dim)">No activities today</div>'; return; }
+    const acts = JSON.parse(data.activities_json);
+    if (acts.length === 0) { $('activities').innerHTML = '<div style="color:var(--dim)">No activities today</div>'; return; }
+    $('activities').innerHTML = acts.map(a => {
+      const dur = a.duration_secs ? `${Math.round(a.duration_secs / 60)}min` : '';
+      const cal = a.calories ? `${a.calories} cal` : '';
+      const hr = a.avg_hr ? `${a.avg_hr} bpm` : '';
+      return `<div class="activity">
+        <div><div class="name">${a.name || a.type || 'Activity'}</div><div class="meta">${a.activityType || ''} ${dur}</div></div>
+        <div class="stats">${[hr, cal].filter(Boolean).join(' · ')}</div>
+      </div>`;
+    }).join('');
+  } catch { $('activities').innerHTML = '<div style="color:var(--dim)">No activities today</div>'; }
+}
+
+async function loadAll() {
+  status('Loading...');
+  try {
+    await Promise.all([loadVitals(), loadCharts(), loadActivities()]);
+    status(`Data loaded — ${chartData.length} days`, 'ok');
+  } catch (e) {
+    status(`Error: ${e}`, 'err');
+  }
+}
+
+async function triggerSync() {
+  status('Syncing...');
+  try {
+    const uid = $('userId').value;
+    const r = await api(`/users/${uid}/sync`);
+    status(r.message || 'Sync triggered', r.status === 'ok' ? 'ok' : 'err');
+    if (r.status === 'ok') loadAll();
+  } catch (e) { status(`Sync failed: ${e}`, 'err'); }
+}
+
+loadAll();
+</script>
+</body>
+</html>
