@@ -213,6 +213,20 @@ pub struct IntradayResponse {
     pub points: serde_json::Value,
 }
 
+// === GPS track types ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpsTrackPoint {
+    pub ts: i64,
+    pub lat: f64,
+    pub lon: f64,
+    pub altitude_m: Option<f64>,
+    pub speed_mps: Option<f64>,
+    pub hr: Option<i64>,
+    pub cadence: Option<i64>,
+    pub power_w: Option<i64>,
+}
+
 /// Baseline averages over N days
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Baseline {

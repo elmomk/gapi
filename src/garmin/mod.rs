@@ -14,7 +14,7 @@ mod auth;
 mod api;
 
 pub use auth::{garmin_login, garmin_submit_mfa, refresh_oauth2_token};
-pub use api::{get_display_name, fetch_all_daily_data};
+pub use api::{get_display_name, fetch_all_daily_data, fetch_activity_gps_track};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

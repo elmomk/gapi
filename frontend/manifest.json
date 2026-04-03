@@ -1,0 +1,17 @@
+{
+  "name": "Garmin Dashboard",
+  "short_name": "Garmin",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0e17",
+  "theme_color": "#0a0e17",
+  "description": "Health analytics dashboard powered by garmin_api",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -250,6 +250,38 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
                 // Store extended daily data
                 let _ = state.repo.upsert_daily_extended(&payload.extended);
 
+                // Fetch and store GPS tracks for activities with distance
+                if state.config.sync_gps_tracks && !payload.rate_limited {
+                    if let Some(ref acts_json) = payload.daily.activities_json {
+                        if let Ok(acts) = serde_json::from_str::<Vec<serde_json::Value>>(acts_json) {
+                            for act in &acts {
+                                let activity_id = act["id"].as_i64().unwrap_or(0);
+                                let distance = act["distance_m"].as_f64().unwrap_or(0.0);
+                                if activity_id > 0 && distance > 0.0 {
+                                    if api_delay > std::time::Duration::ZERO {
+                                        tokio::time::sleep(api_delay).await;
+                                    }
+                                    match garmin::fetch_activity_gps_track(client, &access_token, activity_id).await {
+                                        Ok(points) if !points.is_empty() => {
+                                            let uid = user_id.to_string();
+                                            match state.repo.upsert_gps_track(activity_id, &uid, &date_str, &points) {
+                                                Ok(_) => tracing::debug!("Stored GPS track for activity {}: {} points", activity_id, points.len()),
+                                                Err(e) => tracing::warn!("Failed to store GPS track for activity {}: {}", activity_id, e),
+                                            }
+                                        }
+                                        Ok(_) => { tracing::debug!("No GPS points for activity {}", activity_id); }
+                                        Err(garmin::GarminApiError::RateLimited) => {
+                                            tracing::warn!("Rate limited while fetching GPS track for activity {}", activity_id);
+                                            break;
+                                        }
+                                        Err(e) => { tracing::debug!("GPS track fetch failed for activity {}: {}", activity_id, e); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // Emit daily_data_synced event
                 let event = events::Event::new(
                     "daily_data_synced",

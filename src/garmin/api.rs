@@ -689,6 +689,112 @@ pub async fn fetch_all_daily_data(
     }
 }
 
+/// Fetch GPS track detail metrics for a specific activity.
+/// Returns parsed GPS track points, or an empty vec on failure.
+pub async fn fetch_activity_gps_track(
+    client: &Client,
+    access_token: &str,
+    activity_id: i64,
+) -> Result<Vec<crate::domain::GpsTrackPoint>, GarminApiError> {
+    let path = format!("/activity-service/activity/{}/details", activity_id);
+    let json = garmin_connect_api(client, access_token, &path).await?;
+    Ok(parse_gps_detail_metrics(&json))
+}
+
+/// Parse the Garmin activity detail metrics response into GPS track points.
+fn parse_gps_detail_metrics(json: &serde_json::Value) -> Vec<crate::domain::GpsTrackPoint> {
+    use crate::domain::GpsTrackPoint;
+
+    let descriptors = match json["metricDescriptors"].as_array() {
+        Some(d) => d,
+        None => return Vec::new(),
+    };
+    let metrics = match json["activityDetailMetrics"].as_array() {
+        Some(m) => m,
+        None => return Vec::new(),
+    };
+
+    // Build index map from metric key to array index
+    let mut idx_timestamp: Option<usize> = None;
+    let mut idx_lat: Option<usize> = None;
+    let mut idx_lon: Option<usize> = None;
+    let mut idx_elevation: Option<usize> = None;
+    let mut idx_speed: Option<usize> = None;
+    let mut idx_hr: Option<usize> = None;
+    let mut idx_cadence: Option<usize> = None;
+    let mut idx_power: Option<usize> = None;
+
+    for desc in descriptors {
+        let key = desc["key"].as_str().unwrap_or("");
+        let idx = desc["metricsIndex"].as_u64().map(|i| i as usize);
+        match key {
+            "directTimestamp" => idx_timestamp = idx,
+            "directLatitude" => idx_lat = idx,
+            "directLongitude" => idx_lon = idx,
+            "directElevation" => idx_elevation = idx,
+            "directSpeed" => idx_speed = idx,
+            "directHeartRate" => idx_hr = idx,
+            "directRunCadence" | "directBikeCadence" => {
+                if idx_cadence.is_none() { idx_cadence = idx; }
+            }
+            "directPower" => idx_power = idx,
+            _ => {}
+        }
+    }
+
+    let (idx_ts, idx_la, idx_lo) = match (idx_timestamp, idx_lat, idx_lon) {
+        (Some(t), Some(la), Some(lo)) => (t, la, lo),
+        _ => return Vec::new(),
+    };
+
+    /// Semicircle conversion factor: 180 / 2^31
+    const SEMI_TO_DEG: f64 = 180.0 / 2_147_483_648.0;
+
+    let mut points = Vec::with_capacity(metrics.len());
+
+    for entry in metrics {
+        let m = match entry["metrics"].as_array() {
+            Some(a) => a,
+            None => continue,
+        };
+
+        let ts = match m.get(idx_ts).and_then(|v| v.as_f64()) {
+            Some(t) => t as i64,
+            None => continue,
+        };
+
+        let raw_lat = match m.get(idx_la).and_then(|v| v.as_f64()) {
+            Some(v) => v,
+            None => continue,
+        };
+        let raw_lon = match m.get(idx_lo).and_then(|v| v.as_f64()) {
+            Some(v) => v,
+            None => continue,
+        };
+
+        // Skip zero coordinates (no GPS fix)
+        if raw_lat == 0.0 && raw_lon == 0.0 {
+            continue;
+        }
+
+        // Detect semicircles vs decimal degrees: if magnitude > 180, convert
+        let lat = if raw_lat.abs() > 180.0 { raw_lat * SEMI_TO_DEG } else { raw_lat };
+        let lon = if raw_lon.abs() > 180.0 { raw_lon * SEMI_TO_DEG } else { raw_lon };
+
+        let altitude_m = idx_elevation.and_then(|i| m.get(i)).and_then(|v| v.as_f64());
+        let speed_mps = idx_speed.and_then(|i| m.get(i)).and_then(|v| v.as_f64());
+        let hr = idx_hr.and_then(|i| m.get(i)).and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)));
+        let cadence = idx_cadence.and_then(|i| m.get(i)).and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)));
+        let power_w = idx_power.and_then(|i| m.get(i)).and_then(|v| v.as_i64().or_else(|| v.as_f64().map(|f| f as i64)));
+
+        points.push(GpsTrackPoint {
+            ts, lat, lon, altitude_m, speed_mps, hr, cadence, power_w,
+        });
+    }
+
+    points
+}
+
 /// Parse work sets from exercise set data and populate summary fields
 fn parse_strength_sets(summary: &mut serde_json::Value, all_sets: &[serde_json::Value], activity_id: i64, elapsed: f64) {
     let work_sets: Vec<&serde_json::Value> = all_sets.iter().filter(|s| {

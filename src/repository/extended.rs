@@ -1,5 +1,5 @@
 use super::Repository;
-use crate::domain::DailyExtended;
+use crate::domain::{DailyExtended, GpsTrackPoint};
 use uuid::Uuid;
 
 impl Repository {
@@ -122,5 +122,52 @@ impl Repository {
             })
         })?.collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    // === GPS Track methods ===
+
+    pub fn upsert_gps_track(&self, activity_id: i64, user_id: &str, date: &str, points: &[GpsTrackPoint]) -> anyhow::Result<()> {
+        if points.is_empty() { return Ok(()); }
+        let conn = self.pool.get()?;
+        let tx = conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM activity_gps_tracks WHERE activity_id = ?1",
+            rusqlite::params![activity_id],
+        )?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT INTO activity_gps_tracks (activity_id, ts_ms, user_id, date, lat, lon, altitude_m, speed_mps, hr, cadence, power_w)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
+            )?;
+            for p in points {
+                stmt.execute(rusqlite::params![
+                    activity_id, p.ts, user_id, date,
+                    p.lat, p.lon, p.altitude_m, p.speed_mps, p.hr, p.cadence, p.power_w,
+                ])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn get_gps_track(&self, activity_id: i64) -> anyhow::Result<Vec<GpsTrackPoint>> {
+        let conn = self.pool.get()?;
+        let mut stmt = conn.prepare(
+            "SELECT ts_ms, lat, lon, altitude_m, speed_mps, hr, cadence, power_w
+             FROM activity_gps_tracks WHERE activity_id = ?1 ORDER BY ts_ms"
+        )?;
+        let points = stmt.query_map(rusqlite::params![activity_id], |row| {
+            Ok(GpsTrackPoint {
+                ts: row.get(0)?,
+                lat: row.get(1)?,
+                lon: row.get(2)?,
+                altitude_m: row.get(3)?,
+                speed_mps: row.get(4)?,
+                hr: row.get(5)?,
+                cadence: row.get(6)?,
+                power_w: row.get(7)?,
+            })
+        })?.collect::<Result<Vec<_>, _>>()?;
+        Ok(points)
     }
 }

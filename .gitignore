@@ -7,3 +7,4 @@ todo/
 frontend/config.json
 frontend/dist/
 frontend/.env
+.claude/

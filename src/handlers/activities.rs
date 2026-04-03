@@ -19,6 +19,23 @@ pub struct DateRangeQuery {
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/users/{user_id}/activities", get(list_activities))
+        .route("/users/{user_id}/activities/{activity_id}/gps", get(get_gps_track))
+}
+
+async fn get_gps_track(
+    State(state): State<Arc<AppState>>,
+    Path((user_id, activity_id)): Path<(Uuid, i64)>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Verify user exists
+    match state.repo.get_user(user_id) {
+        Ok(Some(_)) => {}
+        _ => return Err(StatusCode::NOT_FOUND),
+    }
+
+    match state.repo.get_gps_track(activity_id) {
+        Ok(points) => Ok(Json(serde_json::json!(points))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 async fn list_activities(

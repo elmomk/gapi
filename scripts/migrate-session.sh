@@ -17,7 +17,7 @@ GARMIN_DIR="$PROJECT_DIR"
 # Load keys
 GORILLA_KEY=$(grep "^MASTER_KEY=" "$GORILLA_DIR/.env" | cut -d= -f2-)
 GARMIN_KEY=$(grep "^MASTER_KEY=" "$GARMIN_DIR/.env" | cut -d= -f2-)
-USER_ID="${1:-65ef1758-63e0-4a0c-89bd-17f785de0391}"
+USER_ID="${1:?Usage: migrate-session.sh <user-uuid>}"
 
 echo "=== Migrate Garmin Session ==="
 echo "From: gorilla_coach"
