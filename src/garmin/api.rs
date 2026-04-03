@@ -178,7 +178,11 @@ pub async fn fetch_all_daily_data(
     // Intraday collections
     let mut intraday_hr: Vec<IntradayPoint> = Vec::new();
     let mut intraday_stress: Vec<StressPoint> = Vec::new();
-    let mut intraday_steps: Vec<IntradayPoint> = Vec::new();
+    // TODO: intraday_steps is never populated because none of the current 12 daily endpoints
+    // return per-interval step data. Garmin's step-level intraday data requires calling
+    // `/wellness-service/wellness/epochSummaries/{date}` or a similar epoch endpoint.
+    // Add that endpoint call here when intraday step resolution is needed.
+    let intraday_steps: Vec<IntradayPoint> = Vec::new();
     let mut intraday_respiration: Vec<IntradayPointF64> = Vec::new();
     let mut intraday_hrv: Vec<HrvReading> = Vec::new();
     let mut intraday_sleep: Vec<SleepEpoch> = Vec::new();
@@ -405,9 +409,10 @@ pub async fn fetch_all_daily_data(
                     p.body_battery = Some(bb);
                 }
             }
-            // Add body battery points that don't have matching stress
+            // Add body battery points that don't have matching stress (O(n) via HashSet)
+            let existing_ts: std::collections::HashSet<i64> = intraday_stress.iter().map(|p| p.ts).collect();
             for (ts, bb) in &bb_map {
-                if !intraday_stress.iter().any(|p| p.ts == *ts) {
+                if !existing_ts.contains(ts) {
                     intraday_stress.push(StressPoint { ts: *ts, stress: -1, body_battery: Some(*bb) });
                 }
             }

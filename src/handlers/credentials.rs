@@ -32,9 +32,31 @@ pub struct StatusResponse {
 
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
+        .route("/users", get(list_users))
         .route("/users/{user_id}/credentials", post(create_credentials).delete(delete_credentials))
         .route("/users/{user_id}/mfa", post(submit_mfa))
         .route("/users/{user_id}/status", get(get_status))
+}
+
+#[derive(Serialize)]
+pub struct UserListItem {
+    pub user_id: String,
+    pub garmin_username: String,
+    pub status: String,
+    pub last_sync_at: Option<f64>,
+}
+
+async fn list_users(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<Vec<UserListItem>>, StatusCode> {
+    let users = state.repo.get_all_users()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(users.into_iter().map(|u| UserListItem {
+        user_id: u.user_id.to_string(),
+        garmin_username: u.garmin_username,
+        status: u.status,
+        last_sync_at: u.last_sync_at,
+    }).collect()))
 }
 
 async fn create_credentials(

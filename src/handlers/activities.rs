@@ -32,7 +32,7 @@ async fn get_gps_track(
         _ => return Err(StatusCode::NOT_FOUND),
     }
 
-    match state.repo.get_gps_track(activity_id) {
+    match state.repo.get_gps_track(activity_id, &user_id.to_string()) {
         Ok(points) => Ok(Json(serde_json::json!(points))),
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
     }

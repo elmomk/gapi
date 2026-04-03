@@ -234,12 +234,24 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
                 if state.config.sync_intraday {
                     let intraday_start = today - chrono::Duration::days(state.config.sync_intraday_days);
                     if date >= intraday_start {
-                        let _ = state.repo.upsert_intraday_hr(user_id, &date_str, &payload.intraday_hr);
-                        let _ = state.repo.upsert_intraday_stress(user_id, &date_str, &payload.intraday_stress);
-                        let _ = state.repo.upsert_intraday_steps(user_id, &date_str, &payload.intraday_steps);
-                        let _ = state.repo.upsert_intraday_respiration(user_id, &date_str, &payload.intraday_respiration);
-                        let _ = state.repo.upsert_intraday_hrv(user_id, &date_str, &payload.intraday_hrv);
-                        let _ = state.repo.upsert_intraday_sleep(user_id, &date_str, &payload.intraday_sleep);
+                        if let Err(e) = state.repo.upsert_intraday_hr(user_id, &date_str, &payload.intraday_hr) {
+                            tracing::warn!("Failed to store intraday HR for {}: {}", date_str, e);
+                        }
+                        if let Err(e) = state.repo.upsert_intraday_stress(user_id, &date_str, &payload.intraday_stress) {
+                            tracing::warn!("Failed to store intraday stress for {}: {}", date_str, e);
+                        }
+                        if let Err(e) = state.repo.upsert_intraday_steps(user_id, &date_str, &payload.intraday_steps) {
+                            tracing::warn!("Failed to store intraday steps for {}: {}", date_str, e);
+                        }
+                        if let Err(e) = state.repo.upsert_intraday_respiration(user_id, &date_str, &payload.intraday_respiration) {
+                            tracing::warn!("Failed to store intraday respiration for {}: {}", date_str, e);
+                        }
+                        if let Err(e) = state.repo.upsert_intraday_hrv(user_id, &date_str, &payload.intraday_hrv) {
+                            tracing::warn!("Failed to store intraday HRV for {}: {}", date_str, e);
+                        }
+                        if let Err(e) = state.repo.upsert_intraday_sleep(user_id, &date_str, &payload.intraday_sleep) {
+                            tracing::warn!("Failed to store intraday sleep for {}: {}", date_str, e);
+                        }
                         tracing::debug!("Stored intraday: HR={} stress={} steps={} resp={} hrv={} sleep={}",
                             payload.intraday_hr.len(), payload.intraday_stress.len(),
                             payload.intraday_steps.len(), payload.intraday_respiration.len(),
@@ -248,9 +260,12 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
                 }
 
                 // Store extended daily data
-                let _ = state.repo.upsert_daily_extended(&payload.extended);
+                if let Err(e) = state.repo.upsert_daily_extended(&payload.extended) {
+                    tracing::warn!("Failed to store daily extended for {}: {}", date_str, e);
+                }
 
                 // Fetch and store GPS tracks for activities with distance
+                let mut gps_rate_limited = false;
                 if state.config.sync_gps_tracks && !payload.rate_limited {
                     if let Some(ref acts_json) = payload.daily.activities_json {
                         if let Ok(acts) = serde_json::from_str::<Vec<serde_json::Value>>(acts_json) {
@@ -272,6 +287,7 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
                                         Ok(_) => { tracing::debug!("No GPS points for activity {}", activity_id); }
                                         Err(garmin::GarminApiError::RateLimited) => {
                                             tracing::warn!("Rate limited while fetching GPS track for activity {}", activity_id);
+                                            gps_rate_limited = true;
                                             break;
                                         }
                                         Err(e) => { tracing::debug!("GPS track fetch failed for activity {}: {}", activity_id, e); }
@@ -280,6 +296,10 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
                             }
                         }
                     }
+                }
+                if gps_rate_limited {
+                    errors.push(format!("{}: GPS rate limited (429), stopped GPS sync", date_str));
+                    break;
                 }
 
                 // Emit daily_data_synced event
@@ -333,7 +353,7 @@ pub async fn background_sync_loop(state: Arc<AppState>) {
 
         match state.repo.get_all_users() {
             Ok(users) => {
-                for user in users {
+                for user in &users {
                     if user.status == "mfa_required" {
                         tracing::debug!("background_sync: skipping user {} (MFA required)", user.user_id);
                         continue;
@@ -347,6 +367,18 @@ pub async fn background_sync_loop(state: Arc<AppState>) {
                             serde_json::json!({ "reason": e.to_string() }),
                         );
                         state.webhook_dispatcher.dispatch(&state.repo, event).await;
+                    }
+                }
+
+                // Cleanup old intraday data for all users
+                let retention_days = state.config.intraday_retention_days;
+                if retention_days > 0 {
+                    let retention_date = (chrono::Utc::now().date_naive() - chrono::Duration::days(retention_days))
+                        .format("%Y-%m-%d").to_string();
+                    for user in &users {
+                        if let Err(e) = state.repo.cleanup_old_intraday(user.user_id, &retention_date) {
+                            tracing::warn!("background_sync: intraday cleanup failed for user {}: {}", user.user_id, e);
+                        }
                     }
                 }
             }

@@ -151,3 +151,13 @@ pub struct Activity {
     pub body_battery_start: Option<i64>,
     pub body_battery_end: Option<i64>,
 }
+
+// === User list ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GarminUser {
+    pub user_id: String,
+    pub garmin_username: String,
+    pub status: String,
+    pub last_sync_at: Option<f64>,
+}

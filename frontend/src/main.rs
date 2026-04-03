@@ -2,14 +2,14 @@ mod api;
 mod models;
 mod theme;
 mod components;
+mod pages;
+mod state;
 
 use leptos::prelude::*;
-use models::*;
-use components::config_bar::ConfigBar;
-use components::vitals_grid::VitalsGrid;
-use components::sections::trends::TrendsSection;
-use components::sections::intraday::IntradaySection;
-use components::sections::recent_activities::RecentActivitiesSection;
+use leptos_router::components::*;
+use leptos_router::path;
+use pages::*;
+use state::AppState;
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -19,194 +19,187 @@ fn main() {
 
 #[component]
 fn App() -> impl IntoView {
-    let (api_url, set_api_url) = signal(load_setting("garmin_api_url", ""));
-    let (api_key, set_api_key) = signal(load_setting("garmin_api_key", ""));
-    let (user_id, set_user_id) = signal(load_setting("garmin_user_id", ""));
-    let (days, set_days) = signal(30i64);
-    let (status_msg, set_status_msg) = signal(String::new());
-    let (status_type, set_status_type) = signal("loading".to_string());
+    let app_state = AppState::new();
+    provide_context(app_state);
 
-    // Data signals
-    let (vitals, set_vitals) = signal(None::<VitalsData>);
-    let (daily_data, set_daily_data) = signal(Vec::<DailyData>::new());
-    let (loading, set_loading) = signal(false);
+    view! {
+        <Router>
+            <Layout>
+                <Routes fallback=|| "Page not found">
+                    <Route path=path!("/") view=dashboard::DashboardPage />
+                    <Route path=path!("/heart") view=heart::HeartPage />
+                    <Route path=path!("/sleep") view=sleep::SleepPage />
+                    <Route path=path!("/activity") view=activity::ActivityPage />
+                    <Route path=path!("/trends") view=trends::TrendsPage />
+                    <Route path=path!("/settings") view=settings::SettingsPage />
+                </Routes>
+            </Layout>
+        </Router>
+    }
+}
 
-    // Intraday signals
-    let (intraday_hr, set_intraday_hr) = signal(Vec::<IntradayPoint>::new());
-    let (intraday_stress, set_intraday_stress) = signal(Vec::<StressPoint>::new());
-    let (intraday_hrv, set_intraday_hrv) = signal(Vec::<HrvReading>::new());
-    let (intraday_sleep, set_intraday_sleep) = signal(Vec::<SleepEpoch>::new());
-    let (intraday_resp, set_intraday_resp) = signal(Vec::<IntradayPointF64>::new());
+#[component]
+fn Layout(children: Children) -> impl IntoView {
+    let state = expect_context::<AppState>();
+    let (mobile_nav_open, set_mobile_nav_open) = signal(false);
 
-    // Section collapse state
-    let (show_intraday, set_show_intraday) = signal(true);
-    let (show_activities, set_show_activities) = signal(true);
-    let (show_trends, set_show_trends) = signal(true);
-
-    // Save settings
-    Effect::new(move || { save_setting("garmin_api_url", &api_url.get()); });
-    Effect::new(move || { save_setting("garmin_api_key", &api_key.get()); });
-    Effect::new(move || { save_setting("garmin_user_id", &user_id.get()); });
-
-    // Load all data
-    let load_all = Action::new_local(move |_: &()| {
-        let url = api_url.get(); let key = api_key.get(); let uid = user_id.get(); let d = days.get();
-        async move {
-            set_loading.set(true);
-            set_status_msg.set("Loading...".into());
-            set_status_type.set("loading".into());
-
-            // Fetch daily + vitals
-            let vitals_res = api::fetch_vitals(&url, &key, &uid).await;
-            let daily_res = api::fetch_daily_range(&url, &key, &uid, d).await;
-
-            match vitals_res {
-                Ok(v) => set_vitals.set(Some(v)),
-                Err(e) => { set_status_msg.set(format!("Error: {e}")); set_status_type.set("err".into()); set_loading.set(false); return; }
-            }
-            match daily_res {
-                Ok(data) => { let n = data.len(); set_daily_data.set(data); set_status_msg.set(format!("Loaded {n} days")); set_status_type.set("ok".into()); }
-                Err(e) => { set_status_msg.set(format!("Error: {e}")); set_status_type.set("err".into()); }
-            }
-
-            // Fetch intraday for today
-            let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-            set_intraday_hr.set(api::fetch_intraday_hr(&url, &key, &uid, &today).await.unwrap_or_default());
-            set_intraday_stress.set(api::fetch_intraday_stress(&url, &key, &uid, &today).await.unwrap_or_default());
-            set_intraday_hrv.set(api::fetch_intraday_hrv(&url, &key, &uid, &today).await.unwrap_or_default());
-            set_intraday_sleep.set(api::fetch_intraday_sleep(&url, &key, &uid, &today).await.unwrap_or_default());
-            set_intraday_resp.set(api::fetch_intraday_respiration(&url, &key, &uid, &today).await.unwrap_or_default());
-
-            set_loading.set(false);
-        }
-    });
-
-    let trigger_sync = Action::new_local(move |_: &()| {
-        let url = api_url.get(); let key = api_key.get(); let uid = user_id.get();
-        async move {
-            set_status_msg.set("Syncing...".into()); set_status_type.set("loading".into());
-            match api::trigger_sync(&url, &key, &uid).await {
-                Ok(msg) => { set_status_msg.set(msg); set_status_type.set("ok".into()); }
-                Err(e) => { set_status_msg.set(format!("Sync failed: {e}")); set_status_type.set("err".into()); }
-            }
-        }
-    });
-
-    let load_charts = Action::new_local(move |_: &()| {
-        let url = api_url.get(); let key = api_key.get(); let uid = user_id.get(); let d = days.get();
-        async move {
-            if let Ok(data) = api::fetch_daily_range(&url, &key, &uid, d).await { set_daily_data.set(data); }
-        }
-    });
-
-    // Bootstrap: load config.json and auto-load
+    // Bootstrap: load config and data
     Effect::new(move || {
-        if api_key.get().is_empty() || user_id.get().is_empty() {
-            leptos::task::spawn_local(async move {
-                let origin = web_sys::window().and_then(|w| w.location().origin().ok()).unwrap_or_default();
-                let url = format!("{}/config.json", origin);
-                if let Ok(resp) = reqwest::Client::new().get(&url).send().await {
-                    if let Ok(cfg) = resp.json::<serde_json::Value>().await {
-                        if let Some(u) = cfg["api_url"].as_str() { if api_url.get().is_empty() || api_url.get().contains("localhost") { set_api_url.set(u.to_string()); } }
-                        if let Some(k) = cfg["api_key"].as_str() { if api_key.get().is_empty() { set_api_key.set(k.to_string()); } }
-                        if let Some(id) = cfg["user_id"].as_str() { if user_id.get().is_empty() { set_user_id.set(id.to_string()); } }
-                        if !api_key.get().is_empty() && !user_id.get().is_empty() { load_all.dispatch(()); }
-                    }
-                }
-            });
-        } else {
-            load_all.dispatch(());
-        }
+        let s = state.clone();
+        leptos::task::spawn_local(async move { s.bootstrap().await; });
     });
 
     view! {
-        <div class="p-4 max-w-screen-2xl mx-auto">
-            <h1 class="text-accent text-2xl font-bold mb-1">"GARMIN DASHBOARD"</h1>
-            <p class="text-dim text-sm mb-4">"Health analytics powered by garmin_api"</p>
-
-            <ConfigBar
-                api_url=api_url set_api_url=set_api_url
-                api_key=api_key set_api_key=set_api_key
-                user_id=user_id set_user_id=set_user_id
-                on_load=move || { load_all.dispatch(()); }
-                on_sync=move || { trigger_sync.dispatch(()); }
-                loading=loading
-            />
-
-            // Status bar
-            <Show when=move || !status_msg.get().is_empty()>
-                <div class=move || format!("px-4 py-2 rounded text-sm mb-4 border {}", match status_type.get().as_str() {
-                    "ok" => "bg-good/10 text-good border-good/30",
-                    "err" => "bg-warn/10 text-warn border-warn/30",
-                    _ => "bg-info/10 text-info border-info/30",
-                })>{move || status_msg.get()}</div>
-            </Show>
-
-            // Vitals cards
-            <Show when=move || vitals.get().is_some()>
-                <h2 class="text-dim text-xs uppercase tracking-widest mb-3 mt-6">"Today's Vitals"</h2>
-                <VitalsGrid vitals=vitals />
-            </Show>
-
-            // Section 1: Intraday
-            <Show when=move || !intraday_hr.get().is_empty() || !intraday_stress.get().is_empty()>
-                <button class="text-dim text-xs uppercase tracking-widest mt-6 mb-3 flex items-center gap-2 hover:text-text"
-                    on:click=move |_| set_show_intraday.set(!show_intraday.get())>
-                    <span>{move || if show_intraday.get() { "\u{25BC}" } else { "\u{25B6}" }}</span>
-                    "Intraday Health Stats"
-                </button>
-                <Show when=move || show_intraday.get()>
-                    <IntradaySection hr_data=intraday_hr stress_data=intraday_stress hrv_data=intraday_hrv
-                        sleep_data=intraday_sleep resp_data=intraday_resp vitals=vitals />
-                </Show>
-            </Show>
-
-            // Section 2: Recent Activities
-            <Show when=move || !daily_data.get().is_empty()>
-                <button class="text-dim text-xs uppercase tracking-widest mt-6 mb-3 flex items-center gap-2 hover:text-text"
-                    on:click=move |_| set_show_activities.set(!show_activities.get())>
-                    <span>{move || if show_activities.get() { "\u{25BC}" } else { "\u{25B6}" }}</span>
-                    "Recent Activities"
-                </button>
-                <Show when=move || show_activities.get()>
-                    <RecentActivitiesSection data=daily_data />
-                </Show>
-            </Show>
-
-            // Section 3: Trends (with range selector)
-            <Show when=move || !daily_data.get().is_empty()>
-                <div class="flex items-center gap-3 mt-6 mb-3">
-                    <button class="text-dim text-xs uppercase tracking-widest flex items-center gap-2 hover:text-text"
-                        on:click=move |_| set_show_trends.set(!show_trends.get())>
-                        <span>{move || if show_trends.get() { "\u{25BC}" } else { "\u{25B6}" }}</span>
-                        "Long-term Trends"
-                    </button>
-                    <div class="flex gap-1">
-                        {[7, 14, 30, 90, 180, 365].into_iter().map(|d| {
-                            let label = if d == 365 { "1y".to_string() } else { format!("{d}d") };
-                            view! {
-                                <button
-                                    class=move || format!("px-2 py-1 text-xs rounded {}", if days.get() == d { "bg-accent text-bg font-bold" } else { "bg-border text-text" })
-                                    on:click=move |_| { set_days.set(d); load_charts.dispatch(()); }
-                                >{label}</button>
-                            }
-                        }).collect::<Vec<_>>()}
+        <div class="flex min-h-screen">
+            // Desktop sidebar
+            <nav class="hidden md:flex flex-col w-[60px] hover:w-[200px] transition-all duration-200 border-r border-white/[0.06] bg-bg/80 backdrop-blur-xl fixed h-full z-30 group overflow-hidden">
+                <div class="p-3 mb-4 mt-4">
+                    <div class="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center">
+                        <svg viewBox="0 0 24 24" class="w-5 h-5 text-accent" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="4,16 8,8 12,14 16,4 20,10" />
+                        </svg>
                     </div>
-                    <input type="range" min="1" max="365" prop:value=move || days.get().to_string() class="w-32 accent-accent"
-                        on:input=move |e| {
-                            use wasm_bindgen::JsCast;
-                            let v = e.target().unwrap().unchecked_into::<web_sys::HtmlInputElement>().value();
-                            if let Ok(n) = v.parse::<i64>() { set_days.set(n); }
-                        }
-                        on:change=move |_| { load_charts.dispatch(()); }
-                    />
-                    <span class="text-text text-sm font-bold">{move || if days.get() >= 365 { "1 year".into() } else { format!("{} days", days.get()) }}</span>
                 </div>
-                <Show when=move || show_trends.get()>
-                    <TrendsSection data=daily_data />
+                <NavItems />
+            </nav>
+
+            // Main content
+            <div class="flex-1 md:ml-[60px] pb-20 md:pb-0">
+                // Header
+                <header class="sticky top-0 z-20 border-b border-white/[0.06] bg-bg/80 backdrop-blur-xl px-4 py-3">
+                    <div class="flex items-center justify-between max-w-screen-2xl mx-auto">
+                        <div class="flex items-center gap-3">
+                            <button class="md:hidden p-2 text-dim hover:text-text"
+                                on:click=move |_| set_mobile_nav_open.set(!mobile_nav_open.get())>
+                                <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+                                </svg>
+                            </button>
+                            <span class="font-display font-bold text-accent text-lg">"Garmin"</span>
+                            // User switcher
+                            {move || {
+                                let users = state.users.get();
+                                let current_uid = state.user_id.get();
+                                if users.len() <= 1 {
+                                    let name = users.first().map(|u| u.garmin_username.clone()).unwrap_or_default();
+                                    view! { <span class="pill border-accent/30 text-accent bg-accent/10 hidden sm:inline-flex">{name}</span> }.into_any()
+                                } else {
+                                    view! {
+                                        <select class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-sm text-accent font-display hidden sm:inline-block"
+                                            on:change=move |e| {
+                                                use wasm_bindgen::JsCast;
+                                                let uid = e.target().unwrap().unchecked_into::<web_sys::HtmlInputElement>().value();
+                                                let s = state;
+                                                leptos::task::spawn_local(async move { s.switch_user(uid).await; });
+                                            }>
+                                            {users.iter().map(|u| {
+                                                let selected = u.user_id == current_uid;
+                                                let uid = u.user_id.clone();
+                                                let name = u.garmin_username.clone();
+                                                view! { <option value=uid selected=selected>{name}</option> }
+                                            }).collect::<Vec<_>>()}
+                                        </select>
+                                    }.into_any()
+                                }
+                            }}
+                            <span class="text-dim text-sm hidden sm:inline">{move || chrono::Utc::now().format("%a, %b %d").to_string()}</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            // Quick stats pills
+                            {move || state.vitals.get().map(|v| view! {
+                                <div class="hidden sm:flex items-center gap-2">
+                                    {v.steps.map(|s| view! {
+                                        <span class="pill border-steps/30 text-steps bg-steps/10">{format!("{} steps", s)}</span>
+                                    })}
+                                    {v.body_battery_high.map(|b| view! {
+                                        <span class="pill border-good/30 text-good bg-good/10">{format!("{}% battery", b)}</span>
+                                    })}
+                                    {v.resting_heart_rate.map(|hr| view! {
+                                        <span class="pill border-heart/30 text-heart bg-heart/10">{format!("{} bpm", hr)}</span>
+                                    })}
+                                </div>
+                            })}
+                            <a href="/settings" class="p-2 text-dim hover:text-text transition-colors">
+                                <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </header>
+
+                // Mobile slide-out nav
+                <Show when=move || mobile_nav_open.get()>
+                    <div class="fixed inset-0 z-40 md:hidden">
+                        <div class="absolute inset-0 bg-black/50" on:click=move |_| set_mobile_nav_open.set(false)></div>
+                        <nav class="absolute left-0 top-0 h-full w-64 bg-bg border-r border-white/[0.06] p-4 animate-fade-in">
+                            <div class="font-display font-bold text-accent text-lg mb-6">"Garmin Dashboard"</div>
+                            <div on:click=move |_| set_mobile_nav_open.set(false)>
+                                <NavItems />
+                            </div>
+                        </nav>
+                    </div>
                 </Show>
-            </Show>
+
+                // Page content
+                <main class="p-4 sm:p-6 max-w-screen-2xl mx-auto animate-fade-in">
+                    {children()}
+                </main>
+            </div>
+
+            // Mobile bottom nav
+            <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-white/[0.06] bg-bg/90 backdrop-blur-xl">
+                <div class="flex justify-around py-2">
+                    <BottomNavItem href="/" icon="home" label="Home" />
+                    <BottomNavItem href="/heart" icon="heart" label="Heart" />
+                    <BottomNavItem href="/sleep" icon="moon" label="Sleep" />
+                    <BottomNavItem href="/activity" icon="activity" label="Activity" />
+                    <BottomNavItem href="/trends" icon="trending" label="Trends" />
+                </div>
+            </nav>
         </div>
+    }
+}
+
+#[component]
+fn NavItems() -> impl IntoView {
+    view! {
+        <div class="flex flex-col gap-1 px-2">
+            <a href="/" class="nav-item"><NavIcon icon="home" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Dashboard"</span></a>
+            <a href="/heart" class="nav-item"><NavIcon icon="heart" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Heart & Body"</span></a>
+            <a href="/sleep" class="nav-item"><NavIcon icon="moon" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Sleep"</span></a>
+            <a href="/activity" class="nav-item"><NavIcon icon="activity" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Activity"</span></a>
+            <a href="/trends" class="nav-item"><NavIcon icon="trending" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Trends"</span></a>
+            <a href="/settings" class="nav-item mt-auto"><NavIcon icon="settings" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Settings"</span></a>
+        </div>
+    }
+}
+
+#[component]
+fn NavIcon(icon: &'static str) -> impl IntoView {
+    let path = match icon {
+        "home" => "M3 12l9-9 9 9M5 10v10a1 1 0 001 1h3M19 10v10a1 1 0 01-1 1h-3M9 21v-6a1 1 0 011-1h4a1 1 0 011 1v6",
+        "heart" => "M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
+        "moon" => "M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
+        "activity" => "M22 12h-4l-3 9L9 3l-3 9H2",
+        "trending" => "M23 6l-9.5 9.5-5-5L1 18",
+        "settings" => "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
+        _ => "",
+    };
+    view! {
+        <svg viewBox="0 0 24 24" class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d=path />
+        </svg>
+    }
+}
+
+#[component]
+fn BottomNavItem(href: &'static str, icon: &'static str, label: &'static str) -> impl IntoView {
+    view! {
+        <a href=href class="flex flex-col items-center gap-0.5 px-3 py-1 text-dim hover:text-accent transition-colors">
+            <NavIcon icon=icon />
+            <span class="text-[0.6rem]">{label}</span>
+        </a>
     }
 }
 

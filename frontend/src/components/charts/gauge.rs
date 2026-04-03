@@ -50,8 +50,8 @@ pub fn Gauge(
 
     view! {
         <div class="bg-surface border border-border rounded-lg p-3 text-center">
-            <div class="text-dim text-[0.6rem] uppercase tracking-wider mb-1">{title}</div>
-            <svg viewBox="0 0 120 65" class="w-full max-w-[140px] mx-auto">
+            <div class="text-dim text-[0.6rem] sm:text-[0.7rem] uppercase tracking-wider mb-1">{title}</div>
+            <svg viewBox="0 0 120 65" class="w-full min-w-[100px] min-h-[55px] max-w-[140px] mx-auto">
                 <path d=bg_path fill="none" stroke=crate::theme::BORDER stroke-width="8" stroke-linecap="round" />
                 {if !val_path.is_empty() {
                     view! { <path d=val_path fill="none" stroke=color.clone() stroke-width="8" stroke-linecap="round" /> }.into_any()

@@ -29,8 +29,8 @@ pub fn RecentActivitiesSection(data: ReadSignal<Vec<DailyData>>) -> impl IntoVie
                     return view! { <div class="text-dim text-sm">"No recent activities"</div> }.into_any();
                 }
                 view! {
-                    <div class="bg-surface border border-border rounded-lg overflow-hidden mb-3">
-                        <table class="w-full text-sm">
+                    <div class="bg-surface border border-border rounded-lg mb-3 overflow-x-auto">
+                        <table class="min-w-[600px] w-full text-sm">
                             <thead>
                                 <tr class="border-b border-border text-dim text-xs text-left">
                                     <th class="px-3 py-2">"Date"</th>

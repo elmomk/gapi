@@ -150,13 +150,13 @@ impl Repository {
         Ok(())
     }
 
-    pub fn get_gps_track(&self, activity_id: i64) -> anyhow::Result<Vec<GpsTrackPoint>> {
+    pub fn get_gps_track(&self, activity_id: i64, user_id: &str) -> anyhow::Result<Vec<GpsTrackPoint>> {
         let conn = self.pool.get()?;
         let mut stmt = conn.prepare(
             "SELECT ts_ms, lat, lon, altitude_m, speed_mps, hr, cadence, power_w
-             FROM activity_gps_tracks WHERE activity_id = ?1 ORDER BY ts_ms"
+             FROM activity_gps_tracks WHERE activity_id = ?1 AND user_id = ?2 ORDER BY ts_ms"
         )?;
-        let points = stmt.query_map(rusqlite::params![activity_id], |row| {
+        let points = stmt.query_map(rusqlite::params![activity_id, user_id], |row| {
             Ok(GpsTrackPoint {
                 ts: row.get(0)?,
                 lat: row.get(1)?,

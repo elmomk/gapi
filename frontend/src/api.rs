@@ -1,5 +1,13 @@
 use crate::models::*;
 
+pub async fn fetch_users(base_url: &str, api_key: &str) -> Result<Vec<GarminUser>, String> {
+    let c = client(api_key)?;
+    let resp = c.get(format!("{base_url}/api/v1/users"))
+        .send().await.map_err(|e| format!("{e}"))?;
+    if !resp.status().is_success() { return Ok(Vec::new()); }
+    resp.json().await.map_err(|e| format!("{e}"))
+}
+
 fn client(api_key: &str) -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .default_headers({

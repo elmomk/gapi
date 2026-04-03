@@ -4,14 +4,150 @@
 
 @layer base {
     :root {
-        --color-bg: #0a0e17;
+        --color-bg: #080c14;
+        --color-bg2: #0c1220;
         --color-surface: #131a2b;
         --color-border: #1e2a42;
-        --color-text: #e0e6f0;
+        --color-text: #e8ecf4;
         --color-dim: #6b7a99;
         --color-accent: #00d4aa;
+        --color-heart: #ff6b8a;
+        --color-sleep: #7c6bff;
+        --color-stress: #ffb347;
+        --color-steps: #00d4aa;
         --color-good: #00d4aa;
         --color-warn: #ff6b8a;
         --color-info: #4a9eff;
+    }
+
+    body {
+        background: linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg2) 100%);
+        min-height: 100vh;
+    }
+
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+}
+
+@layer components {
+    .card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    .card-flat {
+        background: rgba(19,26,43,0.5);
+        border: 1px solid var(--color-border);
+        border-radius: 12px;
+        padding: 16px;
+    }
+    .metric-value {
+        font-size: 1.875rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    .metric-label {
+        font-size: 0.65rem;
+        text-transform: uppercase;
+        letter-spacing: 0.15em;
+        color: var(--color-dim);
+    }
+    .metric-delta { font-size: 0.75rem; font-weight: 500; }
+    .metric-delta.up { color: var(--color-good); }
+    .metric-delta.down { color: var(--color-warn); }
+    .nav-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        color: var(--color-dim);
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .nav-item:hover { color: var(--color-text); background: rgba(255,255,255,0.04); }
+    .nav-item.active {
+        color: var(--color-accent);
+        background: rgba(0,212,170,0.1);
+        border-left: 3px solid var(--color-accent);
+    }
+    .btn-primary {
+        background: var(--color-accent);
+        color: var(--color-bg);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        min-height: 44px;
+        font-family: 'Inter', system-ui, sans-serif;
+        transition: all 0.2s;
+        border: none;
+        cursor: pointer;
+    }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary {
+        background: rgba(255,255,255,0.06);
+        color: var(--color-text);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.875rem;
+        min-height: 44px;
+        border: 1px solid var(--color-border);
+        font-family: 'Inter', system-ui, sans-serif;
+        transition: all 0.2s;
+        cursor: pointer;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+    .page-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        margin-bottom: 4px;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+    .page-subtitle {
+        color: var(--color-dim);
+        font-size: 0.875rem;
+        margin-bottom: 24px;
+    }
+    .pill {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 10px;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+    }
+    .input-field {
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--color-border);
+        color: var(--color-text);
+        padding: 10px 12px;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        width: 100%;
+        min-height: 44px;
+        transition: all 0.2s;
+    }
+    .input-field:focus {
+        outline: none;
+        border-color: rgba(0,212,170,0.5);
+    }
+}
+
+@layer utilities {
+    .font-display {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
 }

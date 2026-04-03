@@ -8,3 +8,4 @@ frontend/config.json
 frontend/dist/
 frontend/.env
 .claude/
+frontend/target/
