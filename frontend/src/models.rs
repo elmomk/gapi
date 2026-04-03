@@ -52,6 +52,7 @@ pub struct DailyData {
     pub weight_grams: Option<f64>,
     pub bmi: Option<f64>,
     pub body_fat_pct: Option<f64>,
+    pub muscle_mass_grams: Option<f64>,
     pub avg_spo2: Option<f64>,
     pub lowest_spo2: Option<f64>,
     pub avg_respiration: Option<f64>,

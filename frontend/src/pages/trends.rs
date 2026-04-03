@@ -5,6 +5,107 @@ use crate::components::charts::bar_chart::*;
 use crate::components::charts::timeseries::*;
 use crate::models::DailyData;
 
+fn pearson(x: &[f64], y: &[f64]) -> f64 {
+    let n = x.len().min(y.len()) as f64;
+    if n < 3.0 { return 0.0; }
+    let x = &x[..n as usize];
+    let y = &y[..n as usize];
+    let mean_x = x.iter().sum::<f64>() / n;
+    let mean_y = y.iter().sum::<f64>() / n;
+    let num: f64 = x.iter().zip(y).map(|(a, b)| (a - mean_x) * (b - mean_y)).sum();
+    let den_x: f64 = x.iter().map(|a| (a - mean_x).powi(2)).sum::<f64>().sqrt();
+    let den_y: f64 = y.iter().map(|b| (b - mean_y).powi(2)).sum::<f64>().sqrt();
+    if den_x * den_y == 0.0 { 0.0 } else { num / (den_x * den_y) }
+}
+
+fn correlation_strength(r: f64) -> (&'static str, &'static str) {
+    let abs_r = r.abs();
+    let strength = if abs_r >= 0.7 { "strong" } else if abs_r >= 0.4 { "moderate" } else { "weak" };
+    let direction = if r > 0.0 { "positive" } else { "negative" };
+    let color = if abs_r < 0.4 {
+        theme::DIM
+    } else if r > 0.0 {
+        theme::GOOD
+    } else {
+        theme::WARN
+    };
+    let label = match (strength, direction) {
+        ("strong", "positive") => "strong positive",
+        ("strong", "negative") => "strong negative",
+        ("moderate", "positive") => "moderate positive",
+        ("moderate", "negative") => "moderate negative",
+        _ => "weak",
+    };
+    (label, color)
+}
+
+struct CorrelationPair {
+    label: String,
+    r: f64,
+}
+
+fn compute_correlations(daily: &[DailyData]) -> Vec<CorrelationPair> {
+    let mut results = Vec::new();
+
+    // Sleep score -> next-day stress
+    {
+        let mut sleep_scores = Vec::new();
+        let mut next_stress = Vec::new();
+        for i in 0..daily.len().saturating_sub(1) {
+            if let (Some(ss), Some(st)) = (daily[i].sleep_score, daily[i + 1].avg_stress) {
+                sleep_scores.push(ss as f64);
+                next_stress.push(st as f64);
+            }
+        }
+        let r = pearson(&sleep_scores, &next_stress);
+        results.push(CorrelationPair { label: "Sleep Score -> Next-Day Stress".into(), r });
+    }
+
+    // HRV -> training readiness
+    {
+        let mut hrvs = Vec::new();
+        let mut readiness = Vec::new();
+        for d in daily {
+            if let (Some(h), Some(tr)) = (d.hrv_last_night, d.training_readiness) {
+                hrvs.push(h);
+                readiness.push(tr);
+            }
+        }
+        let r = pearson(&hrvs, &readiness);
+        results.push(CorrelationPair { label: "HRV -> Training Readiness".into(), r });
+    }
+
+    // Sleep hours -> body battery high
+    {
+        let mut sleep_hrs = Vec::new();
+        let mut bb_high = Vec::new();
+        for d in daily {
+            if let (Some(sd), Some(bb)) = (d.sleep_duration_secs, d.body_battery_high) {
+                sleep_hrs.push(sd as f64 / 3600.0);
+                bb_high.push(bb as f64);
+            }
+        }
+        let r = pearson(&sleep_hrs, &bb_high);
+        results.push(CorrelationPair { label: "Sleep Hours -> Body Battery High".into(), r });
+    }
+
+    // Steps -> stress
+    {
+        let mut steps = Vec::new();
+        let mut stress = Vec::new();
+        for d in daily {
+            if let (Some(s), Some(st)) = (d.steps, d.avg_stress) {
+                steps.push(s as f64);
+                stress.push(st as f64);
+            }
+        }
+        let r = pearson(&steps, &stress);
+        results.push(CorrelationPair { label: "Steps -> Stress".into(), r });
+    }
+
+    results
+}
+
 fn bar_data(data: &[DailyData], extract: fn(&DailyData) -> Option<f64>) -> Vec<BarPoint> {
     data.iter().map(|d| BarPoint { label: d.date.clone(), value: extract(d).unwrap_or(0.0), color: None }).collect()
 }
@@ -122,6 +223,32 @@ pub fn TrendsPage() -> impl IntoView {
                             unit="kg".into() />
                     </div>
 
+                    // Body Composition
+                    {
+                        let has_body_data = d.iter().any(|d| d.body_fat_pct.is_some() || d.muscle_mass_grams.is_some());
+                        if has_body_data {
+                            let mut body_series = vec![
+                                series_data(&d, "Body Fat %", |d| d.body_fat_pct, theme::CHART_ORANGE),
+                            ];
+                            if d.iter().any(|d| d.muscle_mass_grams.is_some()) {
+                                body_series.push(series_data(&d, "Muscle kg", |d| d.muscle_mass_grams.map(|v| v / 1000.0), theme::CHART_GREEN));
+                            }
+                            view! {
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                    <TimeseriesChart title="Body Composition".into()
+                                        series=body_series />
+                                    <TimeseriesChart title="Weight + Body Fat".into()
+                                        series=vec![
+                                            series_data(&d, "Weight kg", |d| d.weight_grams.map(|v| v / 1000.0), theme::CHART_YELLOW),
+                                            series_data(&d, "Body Fat %", |d| d.body_fat_pct, theme::CHART_ORANGE),
+                                        ] />
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
+                        }
+                    }
+
                     // Stress breakdown + Activity levels from extended data
                     {
                         let ext = state.extended_data.get();
@@ -164,6 +291,40 @@ pub fn TrendsPage() -> impl IntoView {
                                         ] />
                                 </div>
                             }.into_any()
+                        }
+                    }
+
+                    // Correlations
+                    {
+                        let corrs = compute_correlations(&d);
+                        let has_data = corrs.iter().any(|c| c.r.abs() > 0.0);
+                        if has_data {
+                            view! {
+                                <div class="card mt-3">
+                                    <div class="text-text text-sm font-display font-semibold mb-3">"Metric Correlations"</div>
+                                    <div class="text-dim text-xs mb-3">"Pearson correlation between key health metrics"</div>
+                                    <div class="space-y-2">
+                                        {corrs.into_iter().map(|c| {
+                                            let (strength_label, color) = correlation_strength(c.r);
+                                            let bar_width = format!("{}%", (c.r.abs() * 100.0).min(100.0));
+                                            let bar_direction = if c.r >= 0.0 { "right" } else { "left" };
+                                            view! {
+                                                <div class="flex items-center gap-3">
+                                                    <div class="text-xs text-text w-56 flex-shrink-0">{c.label}</div>
+                                                    <div class="flex-1 h-2 rounded-full relative" style=format!("background: {}22", theme::DIM)>
+                                                        <div class="h-full rounded-full absolute" style=format!("width: {}; background: {}; {}: 50%;", bar_width, color, bar_direction)></div>
+                                                    </div>
+                                                    <div class="text-xs w-32 text-right flex-shrink-0" style=format!("color: {}", color)>
+                                                        {format!("{:.2}", c.r)} " (" {strength_label} ")"
+                                                    </div>
+                                                </div>
+                                            }
+                                        }).collect::<Vec<_>>()}
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
                         }
                     }
                 }.into_any()

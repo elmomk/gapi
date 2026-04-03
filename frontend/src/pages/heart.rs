@@ -10,6 +10,19 @@ fn bar_data(data: &[DailyData], extract: fn(&DailyData) -> Option<f64>) -> Vec<B
     data.iter().map(|d| BarPoint { label: d.date.clone(), value: extract(d).unwrap_or(0.0), color: None }).collect()
 }
 
+fn hrv_trend(daily: &[DailyData]) -> (Option<f64>, Option<f64>, &'static str) {
+    let recent_7: Vec<f64> = daily.iter().rev().take(7).filter_map(|d| d.hrv_last_night).collect();
+    let recent_30: Vec<f64> = daily.iter().rev().take(30).filter_map(|d| d.hrv_last_night).collect();
+    let avg_7 = if recent_7.is_empty() { None } else { Some(recent_7.iter().sum::<f64>() / recent_7.len() as f64) };
+    let avg_30 = if recent_30.is_empty() { None } else { Some(recent_30.iter().sum::<f64>() / recent_30.len() as f64) };
+    let trend = match (avg_7, avg_30) {
+        (Some(a), Some(b)) if a > b * 1.05 => "Improving",
+        (Some(a), Some(b)) if a < b * 0.95 => "Declining",
+        _ => "Stable",
+    };
+    (avg_7, avg_30, trend)
+}
+
 #[component]
 pub fn HeartPage() -> impl IntoView {
     let state = expect_context::<AppState>();
@@ -18,6 +31,35 @@ pub fn HeartPage() -> impl IntoView {
         <div class="animate-slide-up">
             <h1 class="page-title">"Heart & Body"</h1>
             <p class="page-subtitle">"Cardiovascular and body metrics"</p>
+
+            // HRV Trend Analysis Card
+            {move || {
+                let daily = state.daily_data.get();
+                let (avg_7, avg_30, trend) = hrv_trend(&daily);
+                if avg_7.is_none() && avg_30.is_none() { return view! { <div></div> }.into_any(); }
+                let (trend_color, trend_arrow) = match trend {
+                    "Improving" => (theme::GOOD, "\u{2191}"),
+                    "Declining" => (theme::WARN, "\u{2193}"),
+                    _ => (theme::CHART_YELLOW, "\u{2194}"),
+                };
+                view! {
+                    <div class="card mb-6" style=format!("border-left: 3px solid {}", trend_color)>
+                        <div class="metric-label mb-1">"HRV Trend"</div>
+                        <div class="flex items-center gap-4">
+                            <div>
+                                <span class="text-2xl font-display font-bold" style=format!("color: {}", trend_color)>
+                                    {trend_arrow} " " {trend}
+                                </span>
+                            </div>
+                            <div class="text-sm text-dim">
+                                {avg_7.map(|v| format!("7-day avg: {:.0}ms", v)).unwrap_or_default()}
+                                " / "
+                                {avg_30.map(|v| format!("30-day avg: {:.0}ms", v)).unwrap_or_default()}
+                            </div>
+                        </div>
+                    </div>
+                }.into_any()
+            }}
 
             // Gauges
             {move || state.vitals.get().map(|v| {

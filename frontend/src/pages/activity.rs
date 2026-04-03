@@ -1,7 +1,34 @@
 use leptos::prelude::*;
+use chrono::Datelike;
 use crate::state::AppState;
 use crate::models::*;
 use crate::theme;
+use crate::components::charts::bar_chart::*;
+
+fn training_heatmap(daily: &[DailyData]) -> Vec<(String, i64)> {
+    daily.iter().map(|d| {
+        (d.date.clone(), d.activities_count.unwrap_or(0))
+    }).collect()
+}
+
+fn weekly_volume(daily: &[DailyData]) -> Vec<BarPoint> {
+    let mut weeks: std::collections::BTreeMap<String, f64> = std::collections::BTreeMap::new();
+    for d in daily {
+        if let Some(ref json) = d.activities_json {
+            if let Ok(acts) = serde_json::from_str::<Vec<serde_json::Value>>(json) {
+                for a in &acts {
+                    if let Some(vol) = a["total_volume_kg"].as_f64() {
+                        if vol > 0.0 {
+                            let week = &d.date[..7]; // YYYY-MM as rough grouping
+                            *weeks.entry(week.to_string()).or_default() += vol;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    weeks.into_iter().map(|(k, v)| BarPoint { label: k, value: v, color: None }).collect()
+}
 
 #[component]
 pub fn ActivityPage() -> impl IntoView {
@@ -62,6 +89,106 @@ pub fn ActivityPage() -> impl IntoView {
                             }
                         }).collect::<Vec<_>>()}
                     </div>
+                }.into_any()
+            }}
+
+            // Training Consistency Heatmap
+            {move || {
+                let d = state.daily_data.get();
+                let heatmap_data = training_heatmap(&d);
+                if heatmap_data.is_empty() { return view! { <div></div> }.into_any(); }
+
+                // Build a grid: 7 columns (Mon-Sun) x N weeks
+                // Parse dates and arrange into week rows
+                let mut cells: Vec<(String, i64, u32)> = Vec::new(); // (date, count, weekday 0=Mon)
+                for (date, count) in &heatmap_data {
+                    if let Ok(parsed) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+                        let wd = parsed.weekday().num_days_from_monday();
+                        cells.push((date.clone(), *count, wd));
+                    }
+                }
+
+                if cells.is_empty() { return view! { <div></div> }.into_any(); }
+
+                // Group into weeks (each week starts on Monday)
+                let mut weeks: Vec<Vec<(String, i64)>> = Vec::new();
+                let mut current_week: Vec<(String, i64)> = vec![("".to_string(), -1); 7];
+                let mut last_week_num: Option<i32> = None;
+
+                for (date, count, wd) in &cells {
+                    if let Ok(parsed) = chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d") {
+                        let week_num = parsed.iso_week().week() as i32 + parsed.iso_week().year() as i32 * 100;
+                        if last_week_num.is_some() && last_week_num != Some(week_num) {
+                            weeks.push(current_week);
+                            current_week = vec![("".to_string(), -1); 7];
+                        }
+                        last_week_num = Some(week_num);
+                        current_week[*wd as usize] = (date.clone(), *count);
+                    }
+                }
+                weeks.push(current_week);
+
+                let day_labels = ["M", "T", "W", "T", "F", "S", "S"];
+
+                view! {
+                    <div class="card mb-6">
+                        <div class="text-text text-sm mb-3 font-display font-semibold">"Training Consistency"</div>
+                        <div class="flex gap-1">
+                            // Day labels
+                            <div class="flex flex-col gap-[2px] mr-1">
+                                {day_labels.iter().map(|l| {
+                                    view! { <div class="text-[0.5rem] text-dim leading-none" style="height: 12px; display: flex; align-items: center;">{*l}</div> }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                            // Week columns
+                            <div class="flex gap-[2px] flex-1 overflow-x-auto">
+                                {weeks.into_iter().map(|week| {
+                                    view! {
+                                        <div class="flex flex-col gap-[2px]">
+                                            {week.into_iter().map(|(date, count)| {
+                                                let (bg, tip) = if count < 0 {
+                                                    (format!("background: {}; opacity: 0.15;", theme::SURFACE), String::new())
+                                                } else if count == 0 {
+                                                    (format!("background: {}; opacity: 0.3;", theme::DIM), format!("{}: no activity", date))
+                                                } else if count == 1 {
+                                                    (format!("background: {}; opacity: 0.6;", theme::CHART_GREEN), format!("{}: {} activity", date, count))
+                                                } else {
+                                                    (format!("background: {};", theme::CHART_GREEN), format!("{}: {} activities", date, count))
+                                                };
+                                                view! {
+                                                    <div class="rounded-[2px] relative group" style=format!("width: 12px; height: 12px; {}", bg)>
+                                                        {if !tip.is_empty() {
+                                                            view! { <div class="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 bg-bg border border-border px-2 py-1 rounded text-[0.55rem] whitespace-nowrap z-20">{tip}</div> }.into_any()
+                                                        } else {
+                                                            view! { <span></span> }.into_any()
+                                                        }}
+                                                    </div>
+                                                }
+                                            }).collect::<Vec<_>>()}
+                                        </div>
+                                    }
+                                }).collect::<Vec<_>>()}
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2 mt-2 text-[0.55rem] text-dim">
+                            <span>"Less"</span>
+                            <div class="rounded-[2px]" style=format!("width: 10px; height: 10px; background: {}; opacity: 0.3;", theme::DIM)></div>
+                            <div class="rounded-[2px]" style=format!("width: 10px; height: 10px; background: {}; opacity: 0.6;", theme::CHART_GREEN)></div>
+                            <div class="rounded-[2px]" style=format!("width: 10px; height: 10px; background: {};", theme::CHART_GREEN)></div>
+                            <span>"More"</span>
+                        </div>
+                    </div>
+                }.into_any()
+            }}
+
+            // Volume Trend (Progressive Overload)
+            {move || {
+                let d = state.daily_data.get();
+                let vol_data = weekly_volume(&d);
+                if vol_data.is_empty() { return view! { <div></div> }.into_any(); }
+                view! {
+                    <BarChart title="Weekly Training Volume".into() data=vol_data
+                        color=theme::CHART_ORANGE.into() unit="kg".into() />
                 }.into_any()
             }}
 
