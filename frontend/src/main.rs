@@ -76,16 +76,23 @@ fn Layout(children: Children) -> impl IntoView {
                                 </svg>
                             </button>
                             <span class="font-display font-bold text-accent text-lg">"Garmin"</span>
-                            // User switcher
+                            // User switcher - always visible
                             {move || {
                                 let users = state.users.get();
                                 let current_uid = state.user_id.get();
-                                if users.len() <= 1 {
-                                    let name = users.first().map(|u| u.garmin_username.clone()).unwrap_or_default();
-                                    view! { <span class="pill border-accent/30 text-accent bg-accent/10 hidden sm:inline-flex">{name}</span> }.into_any()
+                                if users.is_empty() {
+                                    view! { <span></span> }.into_any()
+                                } else if users.len() == 1 {
+                                    let name = users.first().map(|u| {
+                                        let n = &u.garmin_username;
+                                        if n.contains('@') { n.split('@').next().unwrap_or(n).to_string() } else { n.clone() }
+                                    }).unwrap_or_default();
+                                    view! {
+                                        <span class="text-accent text-sm font-display font-medium px-2 py-1 rounded-lg bg-surface border border-border">{name}</span>
+                                    }.into_any()
                                 } else {
                                     view! {
-                                        <select class="bg-transparent border border-white/10 rounded-lg px-2 py-1 text-sm text-accent font-display hidden sm:inline-block"
+                                        <select class="bg-surface border border-border rounded-lg px-2 py-1.5 text-sm text-accent font-display min-h-[36px]"
                                             on:change=move |e| {
                                                 use wasm_bindgen::JsCast;
                                                 let uid = e.target().unwrap().unchecked_into::<web_sys::HtmlInputElement>().value();
@@ -95,7 +102,9 @@ fn Layout(children: Children) -> impl IntoView {
                                             {users.iter().map(|u| {
                                                 let selected = u.user_id == current_uid;
                                                 let uid = u.user_id.clone();
-                                                let name = u.garmin_username.clone();
+                                                let name = if u.garmin_username.contains('@') {
+                                                    u.garmin_username.split('@').next().unwrap_or(&u.garmin_username).to_string()
+                                                } else { u.garmin_username.clone() };
                                                 view! { <option value=uid selected=selected>{name}</option> }
                                             }).collect::<Vec<_>>()}
                                         </select>

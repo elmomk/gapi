@@ -31,8 +31,19 @@ pub fn TimeseriesChart(
 
     // Find global bounds
     let all_y: Vec<f64> = series.iter().flat_map(|s| s.points.iter().map(|(_, y)| *y)).collect();
-    let y_min = all_y.iter().cloned().fold(f64::INFINITY, f64::min).min(0.0);
-    let y_max = all_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max).max(y_min + 1.0);
+    let data_y_min = all_y.iter().cloned().fold(f64::INFINITY, f64::min);
+    let data_y_max = all_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+    let y_range = (data_y_max - data_y_min).max(1.0);
+    // If the range is small relative to the values (like weight: 93-95 out of 95),
+    // zoom into the data range with 10% padding. Otherwise start from 0.
+    let (y_min, y_max) = if data_y_min > 0.0 && y_range / data_y_max < 0.3 {
+        // Tight range: zoom in with padding
+        let pad = y_range * 0.15;
+        (data_y_min - pad, data_y_max + pad)
+    } else {
+        // Wide range: start from 0
+        (0.0_f64.min(data_y_min), data_y_max + y_range * 0.05)
+    };
 
     let all_x: Vec<f64> = series.iter().flat_map(|s| s.points.iter().map(|(x, _)| *x)).collect();
     let x_min = all_x.iter().cloned().fold(f64::INFINITY, f64::min);

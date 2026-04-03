@@ -37,7 +37,7 @@ pub fn BarChart(
     let avg = vals.iter().sum::<f64>() / vals.len() as f64;
     let avg_str = crate::theme::fmt_val(avg);
 
-    let show_every = if data.len() > 60 { (data.len() / 20).max(1) } else if data.len() > 30 { 2 } else { 1 };
+    let show_every = if data.len() > 90 { (data.len() / 15).max(1) } else if data.len() > 45 { (data.len() / 10).max(1) } else if data.len() > 20 { 3 } else { 1 };
 
     let get_color = move |val: f64, custom: &Option<String>| -> String {
         if let Some(c) = custom { return c.clone(); }
@@ -78,7 +78,7 @@ pub fn BarChart(
             </div>
             <div class="flex gap-[1px] mt-1">
                 {bars.iter().map(|(_, _, _, label)| {
-                    view! { <span class="flex-1 text-center text-[0.45rem] text-dim overflow-hidden">{label.clone()}</span> }
+                    view! { <span class="flex-1 text-center text-[0.6rem] text-dim overflow-hidden">{label.clone()}</span> }
                 }).collect::<Vec<_>>()}
             </div>
         </div>
@@ -101,7 +101,7 @@ pub fn StackedBarChart(
     }
 
     let max: f64 = data.iter().map(|p| p.segments.iter().map(|(v, _)| *v).sum::<f64>()).fold(f64::MIN, f64::max).max(0.001);
-    let show_every = if data.len() > 60 { (data.len() / 20).max(1) } else if data.len() > 30 { 2 } else { 1 };
+    let show_every = if data.len() > 90 { (data.len() / 15).max(1) } else if data.len() > 45 { (data.len() / 10).max(1) } else if data.len() > 20 { 3 } else { 1 };
 
     view! {
         <div class="bg-surface border border-border rounded-lg p-4 mb-3">
@@ -146,7 +146,7 @@ pub fn StackedBarChart(
             <div class="flex gap-[1px] mt-1">
                 {data.iter().enumerate().map(|(i, p)| {
                     let label = if i % show_every == 0 { p.label.get(5..).unwrap_or(&p.label).to_string() } else { String::new() };
-                    view! { <span class="flex-1 text-center text-[0.45rem] text-dim overflow-hidden">{label}</span> }
+                    view! { <span class="flex-1 text-center text-[0.6rem] text-dim overflow-hidden">{label}</span> }
                 }).collect::<Vec<_>>()}
             </div>
         </div>
