@@ -33,6 +33,12 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Don't cache config or API responses
+  if (url.pathname === '/config.json' || url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request).catch(() => new Response('offline')));
+    return;
+  }
+
   // Network-first for everything else
   event.respondWith(
     fetch(event.request).then((resp) => {

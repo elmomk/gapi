@@ -88,6 +88,17 @@ pub async fn fetch_intraday_sleep(base_url: &str, api_key: &str, user_id: &str, 
     serde_json::from_value(body["points"].clone()).map_err(|e| format!("{e}"))
 }
 
+pub async fn fetch_daily_extended(base_url: &str, api_key: &str, user_id: &str, days: i64) -> Result<Vec<DailyExtended>, String> {
+    let c = client(api_key)?;
+    let end = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let start = (chrono::Utc::now() - chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+    let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/daily-extended"))
+        .query(&[("start", &start), ("end", &end)])
+        .send().await.map_err(|e| format!("{e}"))?;
+    if !resp.status().is_success() { return Ok(Vec::new()); }
+    resp.json().await.map_err(|e| format!("{e}"))
+}
+
 pub async fn fetch_intraday_respiration(base_url: &str, api_key: &str, user_id: &str, date: &str) -> Result<Vec<IntradayPointF64>, String> {
     let c = client(api_key)?;
     let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/intraday/respiration"))

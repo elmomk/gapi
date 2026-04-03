@@ -3,7 +3,6 @@ use crate::state::AppState;
 use crate::theme;
 use crate::components::charts::bar_chart::*;
 use crate::components::charts::timeseries::*;
-use crate::components::charts::pie_chart::*;
 use crate::models::DailyData;
 
 fn bar_data(data: &[DailyData], extract: fn(&DailyData) -> Option<f64>) -> Vec<BarPoint> {
@@ -114,7 +113,7 @@ pub fn TrendsPage() -> impl IntoView {
                     </div>
 
                     // Stress + Weight
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                         <BarChart title="Daily Stress".into() data=bar_data(&d, |d| d.avg_stress.map(|v| v as f64))
                             color=theme::CHART_RED.into()
                             thresholds=vec![(50.0, theme::STRESS_MEDIUM.into()), (75.0, theme::STRESS_HIGH.into())] />
@@ -122,6 +121,51 @@ pub fn TrendsPage() -> impl IntoView {
                             series=vec![series_data(&d, "Weight", |d| d.weight_grams.map(|v| v / 1000.0), theme::CHART_YELLOW)]
                             unit="kg".into() />
                     </div>
+
+                    // Stress breakdown + Activity levels from extended data
+                    {
+                        let ext = state.extended_data.get();
+                        if ext.is_empty() {
+                            view! { <div></div> }.into_any()
+                        } else {
+                            let stress_stacked: Vec<StackedBarPoint> = ext.iter().map(|day| StackedBarPoint {
+                                label: day.date.clone().unwrap_or_default(),
+                                segments: vec![
+                                    (day.rest_stress_secs.unwrap_or(0) as f64, theme::STRESS_REST.into()),
+                                    (day.low_stress_secs.unwrap_or(0) as f64, theme::STRESS_LOW.into()),
+                                    (day.medium_stress_secs.unwrap_or(0) as f64, theme::STRESS_MEDIUM.into()),
+                                    (day.high_stress_secs.unwrap_or(0) as f64, theme::STRESS_HIGH.into()),
+                                ],
+                            }).collect();
+
+                            let activity_stacked: Vec<StackedBarPoint> = ext.iter().map(|day| StackedBarPoint {
+                                label: day.date.clone().unwrap_or_default(),
+                                segments: vec![
+                                    (day.sedentary_secs.unwrap_or(0) as f64, theme::ACTIVITY_SEDENTARY.into()),
+                                    (day.active_secs.unwrap_or(0) as f64, theme::ACTIVITY_ACTIVE.into()),
+                                    (day.highly_active_secs.unwrap_or(0) as f64, theme::ACTIVITY_INTENSE.into()),
+                                ],
+                            }).collect();
+
+                            view! {
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <StackedBarChart title="Stress Breakdown".into() data=stress_stacked
+                                        legend=vec![
+                                            ("Rest".into(), theme::STRESS_REST.into()),
+                                            ("Low".into(), theme::STRESS_LOW.into()),
+                                            ("Medium".into(), theme::STRESS_MEDIUM.into()),
+                                            ("High".into(), theme::STRESS_HIGH.into()),
+                                        ] />
+                                    <StackedBarChart title="Activity Levels".into() data=activity_stacked
+                                        legend=vec![
+                                            ("Sedentary".into(), theme::ACTIVITY_SEDENTARY.into()),
+                                            ("Active".into(), theme::ACTIVITY_ACTIVE.into()),
+                                            ("Highly Active".into(), theme::ACTIVITY_INTENSE.into()),
+                                        ] />
+                                </div>
+                            }.into_any()
+                        }
+                    }
                 }.into_any()
             }}
         </div>

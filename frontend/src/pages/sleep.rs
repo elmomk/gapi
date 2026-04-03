@@ -5,7 +5,7 @@ use crate::components::charts::timeseries::*;
 use crate::components::charts::bar_chart::*;
 use crate::components::charts::pie_chart::*;
 use crate::components::charts::gauge::Gauge;
-use crate::models::DailyData;
+use crate::components::charts::state_timeline::*;
 
 #[component]
 pub fn SleepPage() -> impl IntoView {
@@ -46,6 +46,43 @@ pub fn SleepPage() -> impl IntoView {
                     series.push(Series { label: "HRV".into(), points: hrv.iter().enumerate().map(|(i, h)| (i as f64, h.hrv_value)).collect(), color: theme::CHART_ORANGE.into(), fill: false });
                 }
                 view! { <TimeseriesChart title="Sleep HR & HRV".into() series=series /> }.into_any()
+            }}
+
+            // Sleep stages timeline
+            {move || {
+                let sl = state.intraday_sleep.get();
+                if sl.is_empty() { return view! { <div></div> }.into_any(); }
+                // Group consecutive stages into segments
+                let mut segments: Vec<TimelineSegment> = Vec::new();
+                for epoch in sl.iter() {
+                    let stage = epoch.stage.as_deref().unwrap_or("unknown");
+                    let (label, color) = match stage {
+                        "deep" => ("Deep", theme::SLEEP_DEEP),
+                        "light" => ("Light", theme::SLEEP_LIGHT),
+                        "rem" => ("REM", theme::SLEEP_REM),
+                        "awake" => ("Awake", theme::SLEEP_AWAKE),
+                        _ => ("Unknown", theme::DIM),
+                    };
+                    // Merge with previous segment if same stage
+                    if let Some(last) = segments.last_mut() {
+                        if last.label == label {
+                            last.value += 1.0;
+                            continue;
+                        }
+                    }
+                    segments.push(TimelineSegment {
+                        label: label.to_string(),
+                        value: 1.0,
+                        color: color.to_string(),
+                    });
+                }
+                let row = TimelineRow {
+                    label: "Stages".to_string(),
+                    segments,
+                };
+                view! {
+                    <StateTimeline title="Sleep Stage Timeline".into() rows=vec![row] />
+                }.into_any()
             }}
 
             // Long-term sleep charts

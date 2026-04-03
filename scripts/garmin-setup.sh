@@ -36,12 +36,10 @@ fi
 # Load cached values
 CACHED_USER_ID=""
 CACHED_EMAIL=""
-CACHED_PASS=""
 if [ -f "$CACHE_FILE" ]; then
     source "$CACHE_FILE"
     CACHED_USER_ID="${USER_ID:-}"
     CACHED_EMAIL="${GARMIN_EMAIL:-}"
-    CACHED_PASS="${GARMIN_PASS:-}"
 fi
 
 echo "=== Garmin Account Setup ==="
@@ -63,19 +61,13 @@ else
     read -rp "Garmin email: " GARMIN_EMAIL
 fi
 
-if [ -n "$CACHED_PASS" ]; then
-    read -rsp "Garmin password [cached]: " GARMIN_PASS
-    GARMIN_PASS="${GARMIN_PASS:-$CACHED_PASS}"
-else
-    read -rsp "Garmin password: " GARMIN_PASS
-fi
+read -rsp "Garmin password: " GARMIN_PASS
 echo ""
 
 # Save to cache
 cat > "$CACHE_FILE" <<EOF
 USER_ID="$USER_ID"
 GARMIN_EMAIL="$GARMIN_EMAIL"
-GARMIN_PASS="$GARMIN_PASS"
 EOF
 chmod 600 "$CACHE_FILE"
 

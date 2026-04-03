@@ -16,6 +16,7 @@ pub struct AppState {
     pub intraday_hrv: RwSignal<Vec<HrvReading>>,
     pub intraday_sleep: RwSignal<Vec<SleepEpoch>>,
     pub intraday_resp: RwSignal<Vec<IntradayPointF64>>,
+    pub extended_data: RwSignal<Vec<DailyExtended>>,
     pub loading: RwSignal<bool>,
     pub status: RwSignal<(String, String)>,
 }
@@ -35,6 +36,7 @@ impl AppState {
             intraday_hrv: RwSignal::new(Vec::new()),
             intraday_sleep: RwSignal::new(Vec::new()),
             intraday_resp: RwSignal::new(Vec::new()),
+            extended_data: RwSignal::new(Vec::new()),
             loading: RwSignal::new(false),
             status: RwSignal::new((String::new(), String::new())),
         }
@@ -111,6 +113,7 @@ impl AppState {
         self.intraday_hrv.set(api::fetch_intraday_hrv(&url, &key, &uid, &today).await.unwrap_or_default());
         self.intraday_sleep.set(api::fetch_intraday_sleep(&url, &key, &uid, &today).await.unwrap_or_default());
         self.intraday_resp.set(api::fetch_intraday_respiration(&url, &key, &uid, &today).await.unwrap_or_default());
+        self.extended_data.set(api::fetch_daily_extended(&url, &key, &uid, d).await.unwrap_or_default());
 
         self.loading.set(false);
     }
@@ -123,6 +126,7 @@ impl AppState {
         if let Ok(data) = api::fetch_daily_range(&url, &key, &uid, d).await {
             self.daily_data.set(data);
         }
+        self.extended_data.set(api::fetch_daily_extended(&url, &key, &uid, d).await.unwrap_or_default());
     }
 
     pub async fn trigger_sync(&self) {

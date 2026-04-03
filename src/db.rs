@@ -170,7 +170,10 @@ pub fn init_pool(db_path: &str) -> DbPool {
             reps INTEGER, weight_kg REAL, duration_secs REAL,
             PRIMARY KEY (activity_id, exercise_name, set_number)
         ) WITHOUT ROWID;
-        CREATE INDEX IF NOT EXISTS idx_exercises_user_date ON activity_exercises(user_id, date);"
+        CREATE INDEX IF NOT EXISTS idx_exercises_user_date ON activity_exercises(user_id, date);
+
+        CREATE INDEX IF NOT EXISTS idx_daily_synced ON garmin_daily_data(user_id, synced_at);
+        CREATE INDEX IF NOT EXISTS idx_users_status ON garmin_users(status);"
     ).expect("Failed to create tables");
 
     tracing::info!("SQLite database initialized at {}", db_path);

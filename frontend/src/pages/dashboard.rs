@@ -11,7 +11,17 @@ pub fn DashboardPage() -> impl IntoView {
     view! {
         <div class="animate-slide-up">
             <h1 class="page-title">"Dashboard"</h1>
-            <p class="page-subtitle">"Today's health overview"</p>
+            <p class="page-subtitle">"// system status: online"</p>
+
+            // Loading skeletons
+            <Show when=move || state.loading.get() && state.vitals.get().is_none()>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    <div class="card"><div class="skeleton h-4 w-16 mb-3"></div><div class="skeleton h-8 w-24 mb-2"></div><div class="skeleton h-3 w-20"></div></div>
+                    <div class="card"><div class="skeleton h-4 w-16 mb-3"></div><div class="skeleton h-8 w-24 mb-2"></div><div class="skeleton h-3 w-20"></div></div>
+                    <div class="card"><div class="skeleton h-4 w-16 mb-3"></div><div class="skeleton h-8 w-24 mb-2"></div><div class="skeleton h-3 w-20"></div></div>
+                    <div class="card"><div class="skeleton h-4 w-16 mb-3"></div><div class="skeleton h-8 w-24 mb-2"></div><div class="skeleton h-3 w-20"></div></div>
+                </div>
+            </Show>
 
             // Vitals grid
             {move || state.vitals.get().map(|v| {

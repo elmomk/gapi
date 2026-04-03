@@ -10,7 +10,9 @@ mod sync;
 mod vault;
 
 use std::sync::Arc;
+use axum::http::{header, HeaderValue};
 use tower_http::cors::{Any, CorsLayer};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 #[tokio::main]
@@ -44,6 +46,7 @@ async fn main() {
     let bg_state = Arc::clone(&state);
     tokio::spawn(sync::background_sync_loop(bg_state));
 
+    // TODO: restrict CORS to specific Tailscale origins via GARMIN_DASHBOARD_URL env var
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
@@ -51,6 +54,10 @@ async fn main() {
 
     let app = handlers::router(state)
         .layer(cors)
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
+        .layer(SetResponseHeaderLayer::if_not_present(
+            header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(&bind_addr).await

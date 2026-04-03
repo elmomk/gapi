@@ -20,12 +20,14 @@ pub fn HeartPage() -> impl IntoView {
             <p class="page-subtitle">"Cardiovascular and body metrics"</p>
 
             // Gauges
-            {move || state.vitals.get().map(|v| view! {
+            {move || state.vitals.get().map(|v| {
+                let spo2 = state.daily_data.get().last().and_then(|d| d.avg_spo2);
+                view! {
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     <Gauge title="RHR".into() value=v.resting_heart_rate.map(|x| x as f64)
                         min=40.0 max=100.0 unit="bpm".into()
                         thresholds=vec![(40.0, theme::CHART_BLUE.into()), (60.0, theme::GOOD.into()), (70.0, theme::CHART_YELLOW.into()), (80.0, theme::WARN.into())] />
-                    <Gauge title="SpO2".into() value=v.resting_heart_rate.map(|_| 97.0)
+                    <Gauge title="SpO2".into() value=spo2
                         min=85.0 max=100.0 unit="%".into()
                         thresholds=vec![(85.0, theme::WARN.into()), (90.0, theme::CHART_YELLOW.into()), (95.0, theme::GOOD.into())] />
                     <Gauge title="Body Battery".into() value=v.body_battery_high.map(|x| x as f64)
@@ -35,7 +37,7 @@ pub fn HeartPage() -> impl IntoView {
                         min=0.0 max=100.0 unit="".into()
                         thresholds=vec![(0.0, theme::GOOD.into()), (40.0, theme::CHART_YELLOW.into()), (60.0, theme::WARN.into())] />
                 </div>
-            })}
+            }})}
 
             // 24h Heart Rate
             {move || {

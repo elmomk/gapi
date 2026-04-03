@@ -93,7 +93,7 @@ impl Repository {
             "SELECT * FROM garmin_daily_data WHERE user_id = ?1 AND date = ?2"
         )?;
         let result = stmt.query_row(rusqlite::params![user_id.to_string(), date], |row| {
-            Ok(row_to_daily_data(row))
+            row_to_daily_data(row)
         });
         match result {
             Ok(data) => Ok(Some(data)),
@@ -108,7 +108,7 @@ impl Repository {
             "SELECT * FROM garmin_daily_data WHERE user_id = ?1 AND date >= ?2 AND date <= ?3 ORDER BY date ASC"
         )?;
         let rows = stmt.query_map(rusqlite::params![user_id.to_string(), start, end], |row| {
-            Ok(row_to_daily_data(row))
+            row_to_daily_data(row)
         })?.collect::<Result<Vec<_>, _>>()?;
         Ok(rows)
     }
@@ -171,56 +171,56 @@ impl Repository {
     }
 }
 
-fn row_to_daily_data(row: &rusqlite::Row) -> GarminDailyData {
-    let user_id_str: String = row.get_unwrap(0);
-    let date_str: String = row.get_unwrap(1);
-    let synced_at: f64 = row.get_unwrap(42);
+fn row_to_daily_data(row: &rusqlite::Row) -> rusqlite::Result<GarminDailyData> {
+    let user_id_str: String = row.get(0)?;
+    let date_str: String = row.get(1)?;
+    let synced_at: f64 = row.get(42)?;
 
-    GarminDailyData {
+    Ok(GarminDailyData {
         user_id: uuid::Uuid::parse_str(&user_id_str).unwrap_or_default(),
         date: chrono::NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
             .unwrap_or_else(|_| chrono::Utc::now().date_naive()),
-        steps: row.get_unwrap(2),
-        distance_meters: row.get_unwrap(3),
-        active_calories: row.get_unwrap(4),
-        total_calories: row.get_unwrap(5),
-        floors_climbed: row.get_unwrap(6),
-        intensity_minutes: row.get_unwrap(7),
-        resting_heart_rate: row.get_unwrap(8),
-        max_heart_rate: row.get_unwrap(9),
-        min_heart_rate: row.get_unwrap(10),
-        avg_heart_rate: row.get_unwrap(11),
-        hrv_weekly_avg: row.get_unwrap(12),
-        hrv_last_night: row.get_unwrap(13),
-        hrv_status: row.get_unwrap(14),
-        sleep_score: row.get_unwrap(15),
-        sleep_duration_secs: row.get_unwrap(16),
-        deep_sleep_secs: row.get_unwrap(17),
-        light_sleep_secs: row.get_unwrap(18),
-        rem_sleep_secs: row.get_unwrap(19),
-        awake_secs: row.get_unwrap(20),
-        avg_stress: row.get_unwrap(21),
-        max_stress: row.get_unwrap(22),
-        body_battery_high: row.get_unwrap(23),
-        body_battery_low: row.get_unwrap(24),
-        body_battery_drain: row.get_unwrap(25),
-        body_battery_charge: row.get_unwrap(26),
-        weight_grams: row.get_unwrap(27),
-        bmi: row.get_unwrap(28),
-        body_fat_pct: row.get_unwrap(29),
-        muscle_mass_grams: row.get_unwrap(30),
-        avg_spo2: row.get_unwrap(31),
-        lowest_spo2: row.get_unwrap(32),
-        avg_respiration: row.get_unwrap(33),
-        training_readiness: row.get_unwrap(34),
-        training_load: row.get_unwrap(35),
-        vo2_max: row.get_unwrap(36),
-        activities_count: row.get_unwrap(37),
-        activities_json: row.get_unwrap(38),
-        sleep_restless_moments: row.get_unwrap(39),
-        sleep_avg_overnight_hr: row.get_unwrap(40),
-        skin_temp_overnight: row.get_unwrap(41),
+        steps: row.get(2)?,
+        distance_meters: row.get(3)?,
+        active_calories: row.get(4)?,
+        total_calories: row.get(5)?,
+        floors_climbed: row.get(6)?,
+        intensity_minutes: row.get(7)?,
+        resting_heart_rate: row.get(8)?,
+        max_heart_rate: row.get(9)?,
+        min_heart_rate: row.get(10)?,
+        avg_heart_rate: row.get(11)?,
+        hrv_weekly_avg: row.get(12)?,
+        hrv_last_night: row.get(13)?,
+        hrv_status: row.get(14)?,
+        sleep_score: row.get(15)?,
+        sleep_duration_secs: row.get(16)?,
+        deep_sleep_secs: row.get(17)?,
+        light_sleep_secs: row.get(18)?,
+        rem_sleep_secs: row.get(19)?,
+        awake_secs: row.get(20)?,
+        avg_stress: row.get(21)?,
+        max_stress: row.get(22)?,
+        body_battery_high: row.get(23)?,
+        body_battery_low: row.get(24)?,
+        body_battery_drain: row.get(25)?,
+        body_battery_charge: row.get(26)?,
+        weight_grams: row.get(27)?,
+        bmi: row.get(28)?,
+        body_fat_pct: row.get(29)?,
+        muscle_mass_grams: row.get(30)?,
+        avg_spo2: row.get(31)?,
+        lowest_spo2: row.get(32)?,
+        avg_respiration: row.get(33)?,
+        training_readiness: row.get(34)?,
+        training_load: row.get(35)?,
+        vo2_max: row.get(36)?,
+        activities_count: row.get(37)?,
+        activities_json: row.get(38)?,
+        sleep_restless_moments: row.get(39)?,
+        sleep_avg_overnight_hr: row.get(40)?,
+        skin_temp_overnight: row.get(41)?,
         synced_at: chrono::DateTime::from_timestamp(synced_at as i64, 0)
             .unwrap_or_else(chrono::Utc::now),
-    }
+    })
 }

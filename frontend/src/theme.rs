@@ -1,73 +1,70 @@
-/// Color constants matching garmin-grafana dashboard
+/// Cyberpunk color constants matching life_manager / gorilla_coach
 
-// Base theme
-pub const BG: &str = "#0a0e17";
-pub const SURFACE: &str = "#131a2b";
-pub const BORDER: &str = "#1e2a42";
-pub const TEXT: &str = "#e0e6f0";
-pub const DIM: &str = "#6b7a99";
-pub const ACCENT: &str = "#00d4aa";
+// Base
+pub const BG: &str = "#08080f";
+pub const SURFACE: &str = "#141428";
+pub const BORDER: &str = "#1e1e3a";
+pub const TEXT: &str = "#e0e0e8";
+pub const DIM: &str = "#5a5a7a";
 
-// Status
-pub const GOOD: &str = "#00d4aa";
-pub const WARN: &str = "#ff6b8a";
-pub const INFO: &str = "#4a9eff";
+// Neon accents
+pub const ACCENT: &str = "#00f0ff";
+pub const GREEN: &str = "#00ff41";
+pub const GOOD: &str = "#00ff41";
+pub const WARN: &str = "#ff2d78";
+pub const INFO: &str = "#00f0ff";
+
+// Metric colors
+pub const CHART_GREEN: &str = "#00ff41";
+pub const CHART_RED: &str = "#ff2d78";
+pub const CHART_BLUE: &str = "#00f0ff";
+pub const CHART_ORANGE: &str = "#ff8c00";
+pub const CHART_PURPLE: &str = "#bf5af2";
+pub const CHART_YELLOW: &str = "#ffdd00";
 
 // Heart rate zones
-pub const HR_ZONE1: &str = "#4a9eff";
-pub const HR_ZONE2: &str = "#00d4aa";
-pub const HR_ZONE3: &str = "#ffb347";
-pub const HR_ZONE4: &str = "#ff6b8a";
-pub const HR_ZONE5: &str = "#ff4444";
+pub const HR_ZONE1: &str = "#00f0ff";
+pub const HR_ZONE2: &str = "#00ff41";
+pub const HR_ZONE3: &str = "#ffdd00";
+pub const HR_ZONE4: &str = "#ff8c00";
+pub const HR_ZONE5: &str = "#ff2d78";
 
 // Sleep stages
-pub const SLEEP_DEEP: &str = "#042c68";
-pub const SLEEP_LIGHT: &str = "#4a9eff";
-pub const SLEEP_REM: &str = "#a352cc";
-pub const SLEEP_AWAKE: &str = "#ff6b8a";
+pub const SLEEP_DEEP: &str = "#1a1a6e";
+pub const SLEEP_LIGHT: &str = "#00f0ff";
+pub const SLEEP_REM: &str = "#bf5af2";
+pub const SLEEP_AWAKE: &str = "#ff2d78";
 
 // Stress
-pub const STRESS_LOW: &str = "#1a4a6e";
-pub const STRESS_REST: &str = "#1a6e3a";
-pub const STRESS_MEDIUM: &str = "#e8a030";
-pub const STRESS_HIGH: &str = "#d04050";
+pub const STRESS_LOW: &str = "#00ff41";
+pub const STRESS_REST: &str = "#00f0ff";
+pub const STRESS_MEDIUM: &str = "#ff8c00";
+pub const STRESS_HIGH: &str = "#ff2d78";
 
 // Body battery
-pub const BB_CHARGED: &str = "#00d4aa";
-pub const BB_DRAINED: &str = "#ff6b8a";
+pub const BB_CHARGED: &str = "#00ff41";
+pub const BB_DRAINED: &str = "#ff2d78";
 
 // Activity
-pub const ACTIVITY_SEDENTARY: &str = "#4a9eff";
-pub const ACTIVITY_ACTIVE: &str = "#ffb347";
-pub const ACTIVITY_INTENSE: &str = "#ff6b8a";
-pub const ACTIVITY_SLEEP: &str = "#042c68";
+pub const ACTIVITY_SEDENTARY: &str = "#5a5a7a";
+pub const ACTIVITY_ACTIVE: &str = "#ff8c00";
+pub const ACTIVITY_INTENSE: &str = "#ff2d78";
+pub const ACTIVITY_SLEEP: &str = "#1a1a6e";
 
-// Charts
-pub const CHART_GREEN: &str = "#00d4aa";
-pub const CHART_RED: &str = "#ff6b8a";
-pub const CHART_BLUE: &str = "#4a9eff";
-pub const CHART_ORANGE: &str = "#ffb347";
-pub const CHART_PURPLE: &str = "#a352cc";
-pub const CHART_YELLOW: &str = "#e8d030";
-
-/// Format seconds as "Xh Ym"
 pub fn fmt_duration(secs: f64) -> String {
     let h = (secs / 3600.0) as i64;
     let m = ((secs % 3600.0) / 60.0) as i64;
     if h > 0 { format!("{}h {}m", h, m) } else { format!("{}m", m) }
 }
 
-/// Format seconds as "X.Xh"
 pub fn fmt_hours(secs: f64) -> String {
     format!("{:.1}h", secs / 3600.0)
 }
 
-/// Format a number with appropriate precision
 pub fn fmt_val(v: f64) -> String {
     if v == v.floor() && v.abs() < 100000.0 { format!("{:.0}", v) } else { format!("{:.1}", v) }
 }
 
-/// Get HR zone color for a given BPM
 pub fn hr_zone_color(bpm: i64) -> &'static str {
     match bpm {
         0..=96 => HR_ZONE1,
@@ -78,7 +75,6 @@ pub fn hr_zone_color(bpm: i64) -> &'static str {
     }
 }
 
-/// Get stress color for a given stress level
 pub fn stress_color(level: i64) -> &'static str {
     match level {
         0..=25 => STRESS_REST,
@@ -88,7 +84,6 @@ pub fn stress_color(level: i64) -> &'static str {
     }
 }
 
-/// Interpolate between two colors based on value in [0, 1]
 pub fn lerp_color(low: &str, high: &str, t: f64) -> String {
     let t = t.clamp(0.0, 1.0);
     let parse = |s: &str, i: usize| u8::from_str_radix(&s[i..i+2], 16).unwrap_or(0);

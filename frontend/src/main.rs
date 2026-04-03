@@ -13,7 +13,7 @@ use state::AppState;
 
 fn main() {
     console_error_panic_hook::set_once();
-    console_log::init_with_level(log::Level::Debug).ok();
+    console_log::init_with_level(log::Level::Warn).ok();
     leptos::mount::mount_to_body(App);
 }
 
@@ -52,9 +52,14 @@ fn Layout(children: Children) -> impl IntoView {
     view! {
         <div class="flex min-h-screen">
             // Desktop sidebar
-            <nav class="hidden md:flex flex-col w-[60px] hover:w-[200px] transition-all duration-200 border-r border-white/[0.06] bg-bg/80 backdrop-blur-xl fixed h-full z-30 group overflow-hidden">
+            // Loading bar
+            <Show when=move || state.loading.get()>
+                <div class="fixed top-0 left-0 right-0 z-50 loading-bar"></div>
+            </Show>
+
+            <nav class="hidden md:flex flex-col w-[60px] hover:w-[200px] transition-all duration-200 border-r border-border bg-bg fixed h-full z-30 group overflow-hidden">
                 <div class="p-3 mb-4 mt-4">
-                    <div class="w-9 h-9 rounded-lg bg-accent/20 flex items-center justify-center">
+                    <div class="w-9 h-9 rounded-lg flex items-center justify-center glow-cyan">
                         <svg viewBox="0 0 24 24" class="w-5 h-5 text-accent" fill="none" stroke="currentColor" stroke-width="2">
                             <polyline points="4,16 8,8 12,14 16,4 20,10" />
                         </svg>
@@ -66,7 +71,7 @@ fn Layout(children: Children) -> impl IntoView {
             // Main content
             <div class="flex-1 md:ml-[60px] pb-20 md:pb-0">
                 // Header
-                <header class="sticky top-0 z-20 border-b border-white/[0.06] bg-bg/80 backdrop-blur-xl px-4 py-3">
+                <header class="sticky top-0 z-20 border-b border-border bg-bg px-4 py-3">
                     <div class="flex items-center justify-between max-w-screen-2xl mx-auto">
                         <div class="flex items-center gap-3">
                             <button class="md:hidden p-2 text-dim hover:text-text"
@@ -75,7 +80,7 @@ fn Layout(children: Children) -> impl IntoView {
                                     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
                                 </svg>
                             </button>
-                            <span class="font-display font-bold text-accent text-lg">"Garmin"</span>
+                            <span class="font-bold text-accent text-sm uppercase tracking-[0.2em]" style="text-shadow: 0 0 12px rgba(0,240,255,0.5)">"GARMIN"</span>
                             // User switcher - always visible
                             {move || {
                                 let users = state.users.get();
@@ -157,7 +162,7 @@ fn Layout(children: Children) -> impl IntoView {
             </div>
 
             // Mobile bottom nav
-            <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-white/[0.06] bg-bg/90 backdrop-blur-xl">
+            <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-bg">
                 <div class="flex justify-around py-2">
                     <BottomNavItem href="/" icon="home" label="Home" />
                     <BottomNavItem href="/heart" icon="heart" label="Heart" />
