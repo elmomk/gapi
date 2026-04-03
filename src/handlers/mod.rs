@@ -1,6 +1,8 @@
 pub mod credentials;
 pub mod sync;
 pub mod data;
+pub mod intraday;
+pub mod activities;
 pub mod webhooks;
 pub mod health;
 
@@ -19,6 +21,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .merge(credentials::routes())
         .merge(sync::routes())
         .merge(data::routes())
+        .merge(intraday::routes())
+        .merge(activities::routes())
         .merge(webhooks::routes())
         .layer(middleware::from_fn_with_state(state.clone(), api_key_auth));
 

@@ -4,3 +4,6 @@ data/
 *.db
 .garmin-setup-cache
 todo/
+frontend/config.json
+frontend/dist/
+frontend/.env

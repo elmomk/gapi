@@ -146,8 +146,8 @@ pub async fn fetch_all_daily_data(
     date: &str,
     user_id: uuid::Uuid,
     display_name: &str,
-) -> (crate::domain::GarminDailyData, bool) {
-    use crate::domain::GarminDailyData;
+) -> crate::domain::DailySyncPayload {
+    use crate::domain::*;
     use chrono::NaiveDate;
 
     let parsed_date = NaiveDate::parse_from_str(date, "%Y-%m-%d")
@@ -174,6 +174,19 @@ pub async fn fetch_all_daily_data(
 
     let display_name = display_name.to_string();
     let mut rate_limited = false;
+
+    // Intraday collections
+    let mut intraday_hr: Vec<IntradayPoint> = Vec::new();
+    let mut intraday_stress: Vec<StressPoint> = Vec::new();
+    let mut intraday_steps: Vec<IntradayPoint> = Vec::new();
+    let mut intraday_respiration: Vec<IntradayPointF64> = Vec::new();
+    let mut intraday_hrv: Vec<HrvReading> = Vec::new();
+    let mut intraday_sleep: Vec<SleepEpoch> = Vec::new();
+    let mut extended = DailyExtended {
+        user_id: user_id.to_string(),
+        date: date.to_string(),
+        ..Default::default()
+    };
 
     fn was_rate_limited<T>(r: &Result<T, GarminApiError>) -> bool {
         matches!(r, Err(GarminApiError::RateLimited))
@@ -239,6 +252,10 @@ pub async fn fetch_all_daily_data(
         data.body_battery_drain = json_i64(&v["bodyBatteryDrainedValue"]);
         data.avg_spo2 = v["averageSpo2"].as_f64();
         data.lowest_spo2 = v["lowestSpo2"].as_f64();
+        // Extended: activity durations from summary
+        extended.sedentary_secs = json_i64(&v["sedentarySeconds"]);
+        extended.active_secs = json_i64(&v["activeSeconds"]);
+        extended.highly_active_secs = json_i64(&v["highlyActiveSeconds"]);
     }
 
     // 2. Heart Rate
@@ -254,6 +271,16 @@ pub async fn fetch_all_daily_data(
             if !valid.is_empty() {
                 data.avg_heart_rate = Some(valid.iter().sum::<i64>() / valid.len() as i64);
             }
+            // Intraday HR: collect all [timestamp_ms, hr] pairs
+            for pair in values {
+                if let Some(arr) = pair.as_array() {
+                    if let (Some(ts), Some(hr)) = (arr.first().and_then(|v| v.as_i64()), arr.get(1).and_then(|v| v.as_i64())) {
+                        if hr > 0 {
+                            intraday_hr.push(IntradayPoint { ts, value: hr });
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -267,6 +294,19 @@ pub async fn fetch_all_daily_data(
         data.hrv_status = v["hrvSummary"]["status"].as_str()
             .or_else(|| v["status"].as_str())
             .map(|s| s.to_string());
+        // Intraday HRV readings
+        if let Some(readings) = v["hrvReadings"].as_array()
+            .or_else(|| v["hrvSummary"]["hrvReadings"].as_array()) {
+            for r in readings {
+                if let (Some(ts), Some(hrv)) = (
+                    r["readingTimeGMT"].as_str().and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f").ok()).map(|dt| dt.and_utc().timestamp_millis())
+                        .or_else(|| r["startTimestampGMT"].as_i64()),
+                    r["hrvValue"].as_f64().or_else(|| r["readingValue"].as_f64()),
+                ) {
+                    intraday_hrv.push(HrvReading { ts, hrv_value: hrv });
+                }
+            }
+        }
     }
 
     // 4. Sleep
@@ -308,6 +348,29 @@ pub async fn fetch_all_daily_data(
             data.avg_respiration = dto["averageRespirationValue"].as_f64()
                 .or_else(|| v["averageRespirationValue"].as_f64());
         }
+        // Intraday sleep: stages, HR, SpO2, movement
+        if let Some(levels) = v["sleepLevels"].as_array()
+            .or_else(|| dto["sleepLevels"].as_array()) {
+            for level in levels {
+                let stage_val = level["activityLevel"].as_f64().or_else(|| level["activityLevel"].as_i64().map(|i| i as f64));
+                let stage = stage_val.map(|v| match v as i64 {
+                    0 => "deep", 1 => "light", 2 => "rem", _ => "awake",
+                }.to_string());
+                if let Some(ts) = level["startGMT"].as_str()
+                    .and_then(|s| chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S%.f").ok())
+                    .map(|dt| dt.and_utc().timestamp_millis())
+                    .or_else(|| level["startGMT"].as_i64())
+                {
+                    intraday_sleep.push(SleepEpoch {
+                        ts, stage,
+                        hr: level["heartRate"].as_i64().or_else(|| json_i64(&level["heartRate"])),
+                        spo2: level["spo2Reading"].as_f64(),
+                        respiration: level["respirationValue"].as_f64(),
+                        movement: level["activityLevel"].as_f64(),
+                    });
+                }
+            }
+        }
     }
 
     // 5. Stress
@@ -315,6 +378,46 @@ pub async fn fetch_all_daily_data(
         data.avg_stress = json_i64(&v["overallStressLevel"])
             .or_else(|| json_i64(&v["avgStressLevel"]));
         data.max_stress = json_i64(&v["maxStressLevel"]);
+        // Intraday stress values
+        if let Some(arr) = v["stressValuesArray"].as_array() {
+            for pair in arr {
+                if let Some(a) = pair.as_array() {
+                    if let (Some(ts), Some(stress)) = (a.first().and_then(|v| v.as_i64()), a.get(1).and_then(|v| v.as_i64())) {
+                        if stress >= 0 {
+                            intraday_stress.push(StressPoint { ts, stress, body_battery: None });
+                        }
+                    }
+                }
+            }
+        }
+        // Intraday body battery values (merge into stress points by timestamp)
+        if let Some(arr) = v["bodyBatteryValuesArray"].as_array() {
+            let mut bb_map: std::collections::HashMap<i64, i64> = std::collections::HashMap::new();
+            for pair in arr {
+                if let Some(a) = pair.as_array() {
+                    if let (Some(ts), Some(bb)) = (a.first().and_then(|v| v.as_i64()), a.get(1).and_then(|v| v.as_i64())) {
+                        bb_map.insert(ts, bb);
+                    }
+                }
+            }
+            for p in &mut intraday_stress {
+                if let Some(&bb) = bb_map.get(&p.ts) {
+                    p.body_battery = Some(bb);
+                }
+            }
+            // Add body battery points that don't have matching stress
+            for (ts, bb) in &bb_map {
+                if !intraday_stress.iter().any(|p| p.ts == *ts) {
+                    intraday_stress.push(StressPoint { ts: *ts, stress: -1, body_battery: Some(*bb) });
+                }
+            }
+            intraday_stress.sort_by_key(|p| p.ts);
+        }
+        // Extended: stress duration breakdown
+        extended.low_stress_secs = json_i64(&v["lowStressDuration"]);
+        extended.medium_stress_secs = json_i64(&v["mediumStressDuration"]);
+        extended.high_stress_secs = json_i64(&v["highStressDuration"]);
+        extended.rest_stress_secs = json_i64(&v["restStressDuration"]);
     }
 
     // 6. Body Battery
@@ -378,6 +481,18 @@ pub async fn fetch_all_daily_data(
     if let Ok(v) = resp_res {
         data.avg_respiration = v["avgWakingRespirationValue"].as_f64()
             .or_else(|| v["avgSleepRespirationValue"].as_f64());
+        // Intraday respiration
+        if let Some(arr) = v["respirationValuesArray"].as_array() {
+            for pair in arr {
+                if let Some(a) = pair.as_array() {
+                    if let (Some(ts), Some(val)) = (a.first().and_then(|v| v.as_i64()), a.get(1).and_then(|v| v.as_f64())) {
+                        if val > 0.0 {
+                            intraday_respiration.push(IntradayPointF64 { ts, value: val });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // 10. Training Readiness
@@ -561,7 +676,17 @@ pub async fn fetch_all_daily_data(
             data.activities_json = Some(serde_json::to_string(&summaries).unwrap_or_default());
         }
 
-    (data, rate_limited)
+    DailySyncPayload {
+        daily: data,
+        extended,
+        intraday_hr,
+        intraday_stress,
+        intraday_steps,
+        intraday_respiration,
+        intraday_hrv,
+        intraday_sleep,
+        rate_limited,
+    }
 }
 
 /// Parse work sets from exercise set data and populate summary fields

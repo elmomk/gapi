@@ -98,7 +98,79 @@ pub fn init_pool(db_path: &str) -> DbPool {
             key_hash TEXT PRIMARY KEY,
             consumer_name TEXT NOT NULL,
             created_at REAL NOT NULL
-        );"
+        );
+
+        -- Intraday tables (per-minute granularity)
+        CREATE TABLE IF NOT EXISTS intraday_heart_rate (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL, value INTEGER NOT NULL,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS intraday_stress (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL, stress INTEGER NOT NULL, body_battery INTEGER,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS intraday_steps (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL, steps INTEGER NOT NULL,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS intraday_respiration (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL, value REAL NOT NULL,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS intraday_hrv (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL, hrv_value REAL NOT NULL,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        CREATE TABLE IF NOT EXISTS intraday_sleep (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            ts_ms INTEGER NOT NULL,
+            stage TEXT, hr INTEGER, spo2 REAL, respiration REAL, movement REAL,
+            PRIMARY KEY (user_id, date, ts_ms)
+        ) WITHOUT ROWID;
+
+        -- Extended daily fields
+        CREATE TABLE IF NOT EXISTS daily_extended (
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            fitness_age INTEGER, race_5k_secs REAL, race_10k_secs REAL,
+            race_half_secs REAL, race_marathon_secs REAL,
+            hydration_intake_ml INTEGER, hydration_goal_ml INTEGER,
+            systolic_bp INTEGER, diastolic_bp INTEGER,
+            training_status_phase TEXT, acute_training_load REAL,
+            low_stress_secs INTEGER, medium_stress_secs INTEGER,
+            high_stress_secs INTEGER, rest_stress_secs INTEGER,
+            sedentary_secs INTEGER, active_secs INTEGER, highly_active_secs INTEGER,
+            synced_at REAL NOT NULL,
+            PRIMARY KEY (user_id, date)
+        );
+
+        -- Activity GPS tracks
+        CREATE TABLE IF NOT EXISTS activity_gps_tracks (
+            activity_id INTEGER NOT NULL, ts_ms INTEGER NOT NULL,
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            lat REAL NOT NULL, lon REAL NOT NULL,
+            altitude_m REAL, speed_mps REAL, hr INTEGER, cadence INTEGER, power_w INTEGER,
+            PRIMARY KEY (activity_id, ts_ms)
+        ) WITHOUT ROWID;
+        CREATE INDEX IF NOT EXISTS idx_gps_user_date ON activity_gps_tracks(user_id, date);
+
+        -- Normalized exercise sets
+        CREATE TABLE IF NOT EXISTS activity_exercises (
+            activity_id INTEGER NOT NULL, exercise_name TEXT NOT NULL, set_number INTEGER NOT NULL,
+            user_id TEXT NOT NULL, date TEXT NOT NULL,
+            reps INTEGER, weight_kg REAL, duration_secs REAL,
+            PRIMARY KEY (activity_id, exercise_name, set_number)
+        ) WITHOUT ROWID;
+        CREATE INDEX IF NOT EXISTS idx_exercises_user_date ON activity_exercises(user_id, date);"
     ).expect("Failed to create tables");
 
     tracing::info!("SQLite database initialized at {}", db_path);

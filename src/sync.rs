@@ -207,15 +207,15 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
         is_first_day = false;
 
         tracing::info!("perform_user_sync: fetching data for {}", date_str);
-        let (daily, rate_limited) = garmin::fetch_all_daily_data(client, &access_token, &date_str, user_id, &display_name).await;
+        let payload = garmin::fetch_all_daily_data(client, &access_token, &date_str, user_id, &display_name).await;
 
-        if rate_limited {
+        if payload.rate_limited {
             tracing::error!("perform_user_sync: rate limited (429) while fetching {} -- stopping sync", date_str);
             errors.push(format!("{}: rate limited (429), stopped", date_str));
             break;
         }
 
-        if !daily.has_data() {
+        if !payload.daily.has_data() {
             consecutive_empty += 1;
             if consecutive_empty >= max_consecutive_empty {
                 errors.push(format!("aborted after {} consecutive empty days", consecutive_empty));
@@ -226,14 +226,35 @@ pub async fn perform_user_sync(state: &Arc<AppState>, user_id: uuid::Uuid) -> Re
 
         consecutive_empty = 0;
 
-        match state.repo.upsert_garmin_daily(&daily) {
+        match state.repo.upsert_garmin_daily(&payload.daily) {
             Ok(_) => {
                 synced_days += 1;
+
+                // Store intraday data if enabled and within intraday range
+                if state.config.sync_intraday {
+                    let intraday_start = today - chrono::Duration::days(state.config.sync_intraday_days);
+                    if date >= intraday_start {
+                        let _ = state.repo.upsert_intraday_hr(user_id, &date_str, &payload.intraday_hr);
+                        let _ = state.repo.upsert_intraday_stress(user_id, &date_str, &payload.intraday_stress);
+                        let _ = state.repo.upsert_intraday_steps(user_id, &date_str, &payload.intraday_steps);
+                        let _ = state.repo.upsert_intraday_respiration(user_id, &date_str, &payload.intraday_respiration);
+                        let _ = state.repo.upsert_intraday_hrv(user_id, &date_str, &payload.intraday_hrv);
+                        let _ = state.repo.upsert_intraday_sleep(user_id, &date_str, &payload.intraday_sleep);
+                        tracing::debug!("Stored intraday: HR={} stress={} steps={} resp={} hrv={} sleep={}",
+                            payload.intraday_hr.len(), payload.intraday_stress.len(),
+                            payload.intraday_steps.len(), payload.intraday_respiration.len(),
+                            payload.intraday_hrv.len(), payload.intraday_sleep.len());
+                    }
+                }
+
+                // Store extended daily data
+                let _ = state.repo.upsert_daily_extended(&payload.extended);
+
                 // Emit daily_data_synced event
                 let event = events::Event::new(
                     "daily_data_synced",
                     user_id,
-                    serde_json::to_value(&daily).unwrap_or_default(),
+                    serde_json::to_value(&payload.daily).unwrap_or_default(),
                 );
                 state.webhook_dispatcher.dispatch(&state.repo, event).await;
             }

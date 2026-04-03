@@ -133,6 +133,86 @@ pub struct VitalsResponse {
     pub baseline_sleep: Option<f64>,
 }
 
+// === Intraday types ===
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntradayPoint {
+    pub ts: i64,
+    pub value: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntradayPointF64 {
+    pub ts: i64,
+    pub value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StressPoint {
+    pub ts: i64,
+    pub stress: i64,
+    pub body_battery: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HrvReading {
+    pub ts: i64,
+    pub hrv_value: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SleepEpoch {
+    pub ts: i64,
+    pub stage: Option<String>,
+    pub hr: Option<i64>,
+    pub spo2: Option<f64>,
+    pub respiration: Option<f64>,
+    pub movement: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DailyExtended {
+    pub user_id: String,
+    pub date: String,
+    pub fitness_age: Option<i64>,
+    pub race_5k_secs: Option<f64>,
+    pub race_10k_secs: Option<f64>,
+    pub race_half_secs: Option<f64>,
+    pub race_marathon_secs: Option<f64>,
+    pub hydration_intake_ml: Option<i64>,
+    pub hydration_goal_ml: Option<i64>,
+    pub systolic_bp: Option<i64>,
+    pub diastolic_bp: Option<i64>,
+    pub training_status_phase: Option<String>,
+    pub acute_training_load: Option<f64>,
+    pub low_stress_secs: Option<i64>,
+    pub medium_stress_secs: Option<i64>,
+    pub high_stress_secs: Option<i64>,
+    pub rest_stress_secs: Option<i64>,
+    pub sedentary_secs: Option<i64>,
+    pub active_secs: Option<i64>,
+    pub highly_active_secs: Option<i64>,
+}
+
+/// The full payload returned by a single day's sync (daily + intraday)
+pub struct DailySyncPayload {
+    pub daily: GarminDailyData,
+    pub extended: DailyExtended,
+    pub intraday_hr: Vec<IntradayPoint>,
+    pub intraday_stress: Vec<StressPoint>,
+    pub intraday_steps: Vec<IntradayPoint>,
+    pub intraday_respiration: Vec<IntradayPointF64>,
+    pub intraday_hrv: Vec<HrvReading>,
+    pub intraday_sleep: Vec<SleepEpoch>,
+    pub rate_limited: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntradayResponse {
+    pub date: String,
+    pub points: serde_json::Value,
+}
+
 /// Baseline averages over N days
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Baseline {

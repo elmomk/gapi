@@ -8,6 +8,10 @@ pub struct AppConfig {
     pub sync_days: i64,
     pub garmin_api_delay_secs: u64,
     pub max_consecutive_empty_days: u64,
+    pub sync_intraday: bool,
+    pub sync_intraday_days: i64,
+    pub sync_gps_tracks: bool,
+    pub intraday_retention_days: i64,
 }
 
 impl AppConfig {
@@ -38,6 +42,22 @@ impl AppConfig {
                 .unwrap_or_else(|_| "5".to_string())
                 .parse()
                 .unwrap_or(5),
+            sync_intraday: std::env::var("SYNC_INTRADAY")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap_or(true),
+            sync_intraday_days: std::env::var("SYNC_INTRADAY_DAYS")
+                .unwrap_or_else(|_| "7".to_string())
+                .parse()
+                .unwrap_or(7),
+            sync_gps_tracks: std::env::var("SYNC_GPS_TRACKS")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+            intraday_retention_days: std::env::var("INTRADAY_RETENTION_DAYS")
+                .unwrap_or_else(|_| "90".to_string())
+                .parse()
+                .unwrap_or(90),
         }
     }
 }

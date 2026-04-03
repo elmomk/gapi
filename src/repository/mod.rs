@@ -1,6 +1,8 @@
 mod users;
 mod data;
 mod webhooks;
+mod intraday;
+mod extended;
 
 use crate::db::DbPool;
 
