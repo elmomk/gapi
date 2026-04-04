@@ -100,6 +100,21 @@ async fn get_vitals(
         None => (None, None, None, None, None),
     };
 
+    // Compute 14-day sleep debt (target 7h)
+    let sleep_debt_hours = {
+        let end = chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string();
+        let start = (chrono::Utc::now().date_naive() - chrono::Duration::days(14)).format("%Y-%m-%d").to_string();
+        state.repo.get_daily_range(user_id, &start, &end)
+            .ok()
+            .map(|days| {
+                let target_secs = 7.0 * 3600.0;
+                let debt: f64 = days.iter().map(|d| {
+                    target_secs - d.sleep_duration_secs.unwrap_or(0) as f64
+                }).sum();
+                debt / 3600.0
+            })
+    };
+
     Ok(Json(VitalsResponse {
         hrv_last_night: data_hrv,
         hrv_status: data_status,
@@ -116,5 +131,6 @@ async fn get_vitals(
         baseline_stress: bl_stress,
         baseline_battery: bl_battery,
         baseline_sleep: bl_sleep,
+        sleep_debt_hours,
     }))
 }

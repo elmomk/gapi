@@ -63,6 +63,31 @@ pub fn SettingsPage() -> impl IntoView {
                 </div>
             </div>
 
+            // Health targets
+            <div class="card mb-4">
+                <h2 class="font-display font-semibold text-sm mb-4">"Health Targets"</h2>
+                <div>
+                    <label class="metric-label block mb-1.5">"Sleep Target"</label>
+                    <div class="flex items-center gap-3">
+                        <input type="range" min="5" max="10" step="0.5"
+                            class="flex-1 accent-accent"
+                            prop:value=move || format!("{}", state.sleep_target_hours.get())
+                            on:input=move |e| {
+                                use wasm_bindgen::JsCast;
+                                if let Ok(v) = e.target().unwrap().unchecked_into::<web_sys::HtmlInputElement>().value().parse::<f64>() {
+                                    state.sleep_target_hours.set(v);
+                                    crate::save_setting("sleep_target_hours", &format!("{}", v));
+                                }
+                            }
+                        />
+                        <span class="text-accent font-bold text-lg min-w-[50px] text-center">
+                            {move || format!("{:.0}h", state.sleep_target_hours.get())}
+                        </span>
+                    </div>
+                    <div class="text-dim text-xs mt-1">"Used for sleep debt calculation"</div>
+                </div>
+            </div>
+
             // Status
             {move || {
                 let (msg, t) = state.status.get();

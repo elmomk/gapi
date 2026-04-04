@@ -131,6 +131,8 @@ pub struct VitalsResponse {
     pub baseline_stress: Option<f64>,
     pub baseline_battery: Option<f64>,
     pub baseline_sleep: Option<f64>,
+    // Sleep debt (14-day, target 7h)
+    pub sleep_debt_hours: Option<f64>,
 }
 
 // === Intraday types ===

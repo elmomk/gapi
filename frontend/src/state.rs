@@ -17,6 +17,7 @@ pub struct AppState {
     pub intraday_sleep: RwSignal<Vec<SleepEpoch>>,
     pub intraday_resp: RwSignal<Vec<IntradayPointF64>>,
     pub extended_data: RwSignal<Vec<DailyExtended>>,
+    pub sleep_target_hours: RwSignal<f64>,
     pub loading: RwSignal<bool>,
     pub status: RwSignal<(String, String)>,
 }
@@ -37,6 +38,9 @@ impl AppState {
             intraday_sleep: RwSignal::new(Vec::new()),
             intraday_resp: RwSignal::new(Vec::new()),
             extended_data: RwSignal::new(Vec::new()),
+            sleep_target_hours: RwSignal::new(
+                crate::load_setting("sleep_target_hours", "7.0").parse().unwrap_or(7.0)
+            ),
             loading: RwSignal::new(false),
             status: RwSignal::new((String::new(), String::new())),
         }

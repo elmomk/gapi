@@ -12,13 +12,20 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
+    healthcheck:
+      test: ["CMD", "tailscale", "status", "--json"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     restart: unless-stopped
 
   app:
     build: .
     network_mode: service:tailscale
     depends_on:
-      - tailscale
+      tailscale:
+        condition: service_healthy
     volumes:
       - ./config.json:/usr/share/nginx/html/config.json:ro
     restart: unless-stopped

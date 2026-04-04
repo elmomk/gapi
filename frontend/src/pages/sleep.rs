@@ -55,12 +55,13 @@ pub fn SleepPage() -> impl IntoView {
             {move || {
                 let daily = state.daily_data.get();
                 if daily.is_empty() { return view! { <div></div> }.into_any(); }
-                let (total_debt, daily_debts) = compute_sleep_debt(&daily, 8.0);
+                let target = state.sleep_target_hours.get();
+                let (total_debt, daily_debts) = compute_sleep_debt(&daily, target);
                 let debt_color = if total_debt <= 2.0 { theme::GOOD } else if total_debt <= 5.0 { theme::CHART_YELLOW } else { theme::WARN };
                 let max_abs = daily_debts.iter().map(|(_, v)| v.abs()).fold(0.001_f64, f64::max);
                 view! {
                     <div class="card mb-6" style=format!("border-left: 3px solid {}", debt_color)>
-                        <div class="metric-label mb-1">"Sleep Debt (14-day, target 8h)"</div>
+                        <div class="metric-label mb-1">{format!("Sleep Debt (14-day, target {:.0}h)", target)}</div>
                         <div class="flex items-baseline gap-2 mb-2">
                             <span class="text-2xl font-display font-bold" style=format!("color: {}", debt_color)>
                                 {format!("{:.1}h", total_debt)}
