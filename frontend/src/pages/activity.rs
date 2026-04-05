@@ -204,8 +204,8 @@ pub fn ActivityPage() -> impl IntoView {
                             let name = a.name.clone().unwrap_or_else(|| "Activity".into());
                             let atype = a.activity_type.clone().unwrap_or_default();
                             let dur = a.duration_secs.map(|s| theme::fmt_duration(s)).unwrap_or_default();
-                            let avg_hr = a.avg_hr.map(|h| format!("{} bpm", h)).unwrap_or_default();
-                            let max_hr = a.max_hr.map(|h| format!("max {}", h)).unwrap_or_default();
+                            let avg_hr = a.avg_hr.map(|h| format!("avg {} bpm", h)).unwrap_or_default();
+                            let max_hr = a.max_hr.map(|h| format!("max {} bpm", h)).unwrap_or_default();
                             let cal = a.calories.map(|c| format!("{} cal", c)).unwrap_or_default();
                             let dist = a.distance_m.filter(|d| *d > 0.0).map(|d| format!("{:.1} km", d / 1000.0));
                             let hr_color = a.avg_hr.map(|h| theme::hr_zone_color(h).to_string()).unwrap_or_else(|| theme::DIM.into());
@@ -237,7 +237,8 @@ pub fn ActivityPage() -> impl IntoView {
                                             <div class="text-dim text-xs mt-0.5">{date_short} " · " {atype.clone()} " · " {dur}</div>
                                         </div>
                                         <div class="text-right text-sm">
-                                            <div style=format!("color: {}", hr_color)>{avg_hr} <span class="text-dim text-xs">{max_hr}</span></div>
+                                            <div style=format!("color: {}", hr_color)>{avg_hr}</div>
+                                            <div class="text-xs" style=format!("color: {}", theme::CHART_RED)>{max_hr}</div>
                                             <div class="text-dim text-xs">{cal}</div>
                                         </div>
                                     </div>
