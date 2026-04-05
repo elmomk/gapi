@@ -117,6 +117,22 @@ fn Layout(children: Children) -> impl IntoView {
                                 }
                             }}
                             <span class="text-dim text-sm hidden sm:inline">{move || chrono::Utc::now().format("%a, %b %d").to_string()}</span>
+                            <span class="text-dim text-xs hidden sm:inline">{move || {
+                                let users = state.users.get();
+                                let uid = state.user_id.get();
+                                users.iter().find(|u| u.user_id == uid)
+                                    .and_then(|u| u.last_sync_at)
+                                    .map(|ts| {
+                                        let elapsed = chrono::Utc::now().timestamp() as f64 - ts;
+                                        let mins = (elapsed / 60.0) as i64;
+                                        let label = if mins < 1 { "just now".to_string() }
+                                            else if mins < 60 { format!("{}m ago", mins) }
+                                            else if mins < 1440 { format!("{}h ago", mins / 60) }
+                                            else { format!("{}d ago", mins / 1440) };
+                                        format!("synced {}", label)
+                                    })
+                                    .unwrap_or_default()
+                            }}</span>
                         </div>
                         <div class="flex items-center gap-2">
                             // Quick stats pills

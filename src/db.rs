@@ -80,6 +80,8 @@ pub fn init_pool(db_path: &str) -> DbPool {
             sleep_restless_moments INTEGER,
             sleep_avg_overnight_hr REAL,
             skin_temp_overnight REAL,
+            sleep_score_feedback TEXT,
+            training_readiness_feedback TEXT,
             synced_at REAL NOT NULL,
             PRIMARY KEY (user_id, date)
         );
@@ -175,6 +177,16 @@ pub fn init_pool(db_path: &str) -> DbPool {
         CREATE INDEX IF NOT EXISTS idx_daily_synced ON garmin_daily_data(user_id, synced_at);
         CREATE INDEX IF NOT EXISTS idx_users_status ON garmin_users(status);"
     ).expect("Failed to create tables");
+
+    // Migrations for existing databases
+    for col in [
+        ("garmin_daily_data", "sleep_score_feedback", "TEXT"),
+        ("garmin_daily_data", "training_readiness_feedback", "TEXT"),
+    ] {
+        let sql = format!("ALTER TABLE {} ADD COLUMN {} {}", col.0, col.1, col.2);
+        // Ignore "duplicate column name" errors (already migrated)
+        let _ = conn.execute(&sql, []);
+    }
 
     tracing::info!("SQLite database initialized at {}", db_path);
     pool

@@ -156,6 +156,70 @@ pub fn DashboardPage() -> impl IntoView {
                 })
             }}
 
+            // Training Readiness Feedback
+            {move || {
+                let d = state.daily_data.get();
+                let feedback_json = d.last().and_then(|day| day.training_readiness_feedback.as_ref())
+                    .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
+                let feedback_json = match feedback_json {
+                    Some(v) => v,
+                    None => return view! { <div></div> }.into_any(),
+                };
+                let components: Vec<(&str, &str, &str)> = vec![
+                    ("sleepComponent", "Sleep", theme::CHART_PURPLE),
+                    ("recoveryComponent", "Recovery", theme::CHART_GREEN),
+                    ("hrvComponent", "HRV", theme::CHART_ORANGE),
+                    ("acuteLoadComponent", "Acute Load", theme::CHART_RED),
+                    ("chronicLoadComponent", "Chronic Load", theme::CHART_BLUE),
+                    ("sleepHistoryComponent", "Sleep History", theme::SLEEP_LIGHT),
+                ];
+                let cards: Vec<_> = components.iter().filter_map(|(key, label, color)| {
+                    let val = &feedback_json[*key];
+                    if val.is_null() { return None; }
+                    // Component can be a number (score) or an object with score/feedback
+                    let score = val.as_f64()
+                        .or_else(|| val["score"].as_f64())
+                        .or_else(|| val["value"].as_f64());
+                    let score = score?;
+                    let feedback = val["feedback"].as_str()
+                        .or_else(|| val["description"].as_str());
+                    let score_color = if score >= 66.0 { theme::GOOD }
+                        else if score >= 33.0 { theme::CHART_YELLOW }
+                        else { theme::WARN };
+                    Some(view! {
+                        <div class="card" style=format!("border-left: 3px solid {}", color)>
+                            <div class="metric-label mb-1">{label.to_string()}</div>
+                            <span class="metric-value text-xl" style=format!("color: {}", score_color)>
+                                {format!("{:.0}", score)}
+                            </span>
+                            {feedback.map(|f| view! {
+                                <div class="text-dim text-xs mt-1">{f.to_string()}</div>
+                            })}
+                        </div>
+                    })
+                }).collect();
+                let level = feedback_json["level"].as_str()
+                    .or_else(|| feedback_json["levelDescription"].as_str());
+                let message = feedback_json["readinessMessage"].as_str()
+                    .or_else(|| feedback_json["feedback"].as_str());
+                if cards.is_empty() && level.is_none() && message.is_none() {
+                    return view! { <div></div> }.into_any();
+                }
+                view! {
+                    <div class="mb-6">
+                        <h2 class="text-sm font-display font-semibold text-text mb-3">"Training Readiness"</h2>
+                        {message.map(|m| view! {
+                            <div class="card mb-3" style=format!("border-left: 3px solid {}", theme::INFO)>
+                                <span class="text-sm" style=format!("color: {}", theme::TEXT)>{m.to_string()}</span>
+                            </div>
+                        })}
+                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {cards}
+                        </div>
+                    </div>
+                }.into_any()
+            }}
+
             // Loading skeletons
             <Show when=move || state.loading.get() && state.vitals.get().is_none()>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">

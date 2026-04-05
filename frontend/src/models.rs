@@ -63,6 +63,8 @@ pub struct DailyData {
     pub activities_json: Option<String>,
     pub sleep_restless_moments: Option<i64>,
     pub sleep_avg_overnight_hr: Option<f64>,
+    pub sleep_score_feedback: Option<String>,
+    pub training_readiness_feedback: Option<String>,
 }
 
 // === Intraday data ===

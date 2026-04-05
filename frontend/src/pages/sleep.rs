@@ -149,6 +149,92 @@ pub fn SleepPage() -> impl IntoView {
                 }.into_any()
             }}
 
+            // Sleep Score Feedback (Garmin recommendations)
+            {move || {
+                let d = state.daily_data.get();
+                let feedback_json = d.last().and_then(|day| day.sleep_score_feedback.as_ref())
+                    .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
+                let feedback_json = match feedback_json {
+                    Some(v) => v,
+                    None => return view! { <div></div> }.into_any(),
+                };
+                let sub_scores: Vec<(&str, &str, &str)> = vec![
+                    ("totalDuration", "Duration", theme::CHART_BLUE),
+                    ("deepPercentage", "Deep Sleep", theme::SLEEP_DEEP),
+                    ("lightPercentage", "Light Sleep", theme::SLEEP_LIGHT),
+                    ("remPercentage", "REM Sleep", theme::SLEEP_REM),
+                    ("restfulness", "Restfulness", theme::CHART_GREEN),
+                    ("awakeningsCount", "Awakenings", theme::CHART_ORANGE),
+                    ("recovery", "Recovery", theme::CHART_PURPLE),
+                ];
+                let cards: Vec<_> = sub_scores.iter().filter_map(|(key, label, color)| {
+                    let obj = &feedback_json[*key];
+                    if obj.is_null() { return None; }
+                    let value = obj["value"].as_i64().or_else(|| obj["value"].as_f64().map(|f| f as i64));
+                    let qualifier = obj["qualifier"].as_str().unwrap_or("");
+                    let optimal_start = obj["optimal_start"].as_f64();
+                    let optimal_end = obj["optimal_end"].as_f64();
+                    let qual_color = match qualifier {
+                        "EXCELLENT" | "GOOD" => theme::GOOD,
+                        "FAIR" => theme::CHART_YELLOW,
+                        "POOR" => theme::WARN,
+                        _ => theme::DIM,
+                    };
+                    let range_text = match (optimal_start, optimal_end) {
+                        (Some(s), Some(e)) => format!("optimal: {:.0}-{:.0}", s, e),
+                        _ => String::new(),
+                    };
+                    Some(view! {
+                        <div class="card" style=format!("border-left: 3px solid {}", color)>
+                            <div class="metric-label mb-1">{label.to_string()}</div>
+                            <div class="flex items-baseline gap-2">
+                                {value.map(|v| view! {
+                                    <span class="metric-value text-xl" style=format!("color: {}", color)>{format!("{}", v)}</span>
+                                })}
+                                <span class="text-xs font-display font-semibold" style=format!("color: {}", qual_color)>
+                                    {qualifier.to_string()}
+                                </span>
+                            </div>
+                            <div class="text-dim text-xs mt-1">{range_text}</div>
+                        </div>
+                    })
+                }).collect();
+                // Sleep need / recommendation
+                let sleep_need = &feedback_json["sleepNeed"];
+                let sleep_rec = &feedback_json["sleepRecommendation"];
+                let need_text = if !sleep_need.is_null() {
+                    let need_secs = sleep_need["sleepNeedSeconds"].as_f64()
+                        .or_else(|| sleep_need["sleepNeed"].as_f64())
+                        .or_else(|| sleep_need["basicSleepNeedSeconds"].as_f64());
+                    need_secs.map(|s| format!("Sleep need: {:.1}h", s / 3600.0))
+                } else { None };
+                let rec_text = if !sleep_rec.is_null() {
+                    sleep_rec.as_str().map(|s| s.to_string())
+                        .or_else(|| sleep_rec["message"].as_str().map(|s| s.to_string()))
+                        .or_else(|| sleep_rec["feedback"].as_str().map(|s| s.to_string()))
+                } else { None };
+                if cards.is_empty() && need_text.is_none() && rec_text.is_none() {
+                    return view! { <div></div> }.into_any();
+                }
+                view! {
+                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Sleep Score Breakdown"</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
+                        {cards}
+                    </div>
+                    {need_text.map(|t| view! {
+                        <div class="card mb-3" style=format!("border-left: 3px solid {}", theme::CHART_BLUE)>
+                            <span class="text-sm" style=format!("color: {}", theme::TEXT)>{t}</span>
+                        </div>
+                    })}
+                    {rec_text.map(|t| view! {
+                        <div class="card mb-6" style=format!("border-left: 3px solid {}", theme::INFO)>
+                            <div class="metric-label mb-1">"Recommendation"</div>
+                            <span class="text-sm" style=format!("color: {}", theme::TEXT)>{t}</span>
+                        </div>
+                    })}
+                }.into_any()
+            }}
+
             // Sleep intraday
             {move || {
                 let sl = state.intraday_sleep.get();

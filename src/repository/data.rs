@@ -19,11 +19,12 @@ impl Repository {
                 training_readiness, training_load, vo2_max,
                 activities_count, activities_json,
                 sleep_restless_moments, sleep_avg_overnight_hr, skin_temp_overnight,
+                sleep_score_feedback, training_readiness_feedback,
                 synced_at
             ) VALUES (
                 ?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,
                 ?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,
-                ?40,?41,?42,?43
+                ?40,?41,?42,?43,?44,?45
             ) ON CONFLICT (user_id, date) DO UPDATE SET
                 steps=COALESCE(excluded.steps, garmin_daily_data.steps),
                 distance_meters=COALESCE(excluded.distance_meters, garmin_daily_data.distance_meters),
@@ -65,6 +66,8 @@ impl Repository {
                 sleep_restless_moments=COALESCE(excluded.sleep_restless_moments, garmin_daily_data.sleep_restless_moments),
                 sleep_avg_overnight_hr=COALESCE(excluded.sleep_avg_overnight_hr, garmin_daily_data.sleep_avg_overnight_hr),
                 skin_temp_overnight=COALESCE(excluded.skin_temp_overnight, garmin_daily_data.skin_temp_overnight),
+                sleep_score_feedback=COALESCE(excluded.sleep_score_feedback, garmin_daily_data.sleep_score_feedback),
+                training_readiness_feedback=COALESCE(excluded.training_readiness_feedback, garmin_daily_data.training_readiness_feedback),
                 synced_at=excluded.synced_at",
             rusqlite::params![
                 d.user_id.to_string(), d.date.format("%Y-%m-%d").to_string(),
@@ -81,6 +84,7 @@ impl Repository {
                 d.training_readiness, d.training_load, d.vo2_max,
                 d.activities_count, d.activities_json,
                 d.sleep_restless_moments, d.sleep_avg_overnight_hr, d.skin_temp_overnight,
+                d.sleep_score_feedback, d.training_readiness_feedback,
                 synced_at,
             ],
         )?;
@@ -174,7 +178,7 @@ impl Repository {
 fn row_to_daily_data(row: &rusqlite::Row) -> rusqlite::Result<GarminDailyData> {
     let user_id_str: String = row.get(0)?;
     let date_str: String = row.get(1)?;
-    let synced_at: f64 = row.get(42)?;
+    let synced_at: f64 = row.get(44)?;
 
     Ok(GarminDailyData {
         user_id: uuid::Uuid::parse_str(&user_id_str).unwrap_or_default(),
@@ -220,6 +224,8 @@ fn row_to_daily_data(row: &rusqlite::Row) -> rusqlite::Result<GarminDailyData> {
         sleep_restless_moments: row.get(39)?,
         sleep_avg_overnight_hr: row.get(40)?,
         skin_temp_overnight: row.get(41)?,
+        sleep_score_feedback: row.get(42)?,
+        training_readiness_feedback: row.get(43)?,
         synced_at: chrono::DateTime::from_timestamp(synced_at as i64, 0)
             .unwrap_or_else(chrono::Utc::now),
     })

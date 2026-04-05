@@ -169,6 +169,7 @@ pub async fn fetch_all_daily_data(
         training_readiness: None, training_load: None, vo2_max: None,
         activities_count: None, activities_json: None,
         sleep_restless_moments: None, sleep_avg_overnight_hr: None, skin_temp_overnight: None,
+        sleep_score_feedback: None, training_readiness_feedback: None,
         synced_at: chrono::Utc::now(),
     };
 
@@ -352,6 +353,44 @@ pub async fn fetch_all_daily_data(
             data.avg_respiration = dto["averageRespirationValue"].as_f64()
                 .or_else(|| v["averageRespirationValue"].as_f64());
         }
+        // Sleep score feedback: capture all sub-scores with qualifiers
+        let scores = &v["sleepScores"];
+        let dto_scores = &dto["sleepScores"];
+        let pick = |key: &str| -> Option<serde_json::Value> {
+            let s = &scores[key];
+            let d = &dto_scores[key];
+            let src = if !s.is_null() { s } else if !d.is_null() { d } else { return None };
+            Some(serde_json::json!({
+                "value": src["value"],
+                "qualifier": src["qualifierKey"],
+                "optimal_start": src["optimalStart"],
+                "optimal_end": src["optimalEnd"],
+            }))
+        };
+        let mut feedback = serde_json::Map::new();
+        for key in ["overall", "totalDuration", "deepPercentage", "lightPercentage",
+                     "remPercentage", "restfulness", "sleepQuality", "awakeningsCount",
+                     "averageStress", "recovery"] {
+            if let Some(val) = pick(key) {
+                feedback.insert(key.to_string(), val);
+            }
+        }
+        // Also capture the sleepNeed / sleepScoreDTO insight fields
+        let score_dto = &v["sleepScoreDTO"];
+        if !score_dto.is_null() {
+            feedback.insert("sleepScoreDTO".to_string(), score_dto.clone());
+        }
+        let sleep_need = &v["sleepNeed"];
+        if !sleep_need.is_null() {
+            feedback.insert("sleepNeed".to_string(), sleep_need.clone());
+        }
+        let reco = &v["sleepRecommendation"];
+        if !reco.is_null() {
+            feedback.insert("sleepRecommendation".to_string(), reco.clone());
+        }
+        if !feedback.is_empty() {
+            data.sleep_score_feedback = Some(serde_json::Value::Object(feedback).to_string());
+        }
         // Intraday sleep: stages, HR, SpO2, movement
         if let Some(levels) = v["sleepLevels"].as_array()
             .or_else(|| dto["sleepLevels"].as_array()) {
@@ -506,6 +545,23 @@ pub async fn fetch_all_daily_data(
         if let Some(e) = entry {
             data.training_readiness = e["score"].as_f64()
                 .or_else(|| e["trainingReadinessScore"].as_f64());
+            // Capture all training readiness component feedback
+            let mut tr_feedback = serde_json::Map::new();
+            for key in ["sleepComponent", "recoveryComponent", "hrvComponent",
+                        "acuteLoadComponent", "chronicLoadComponent", "sleepHistoryComponent",
+                        "trainingLoadComponent", "level", "levelDescription",
+                        "readinessMessage", "feedback"] {
+                if !e[key].is_null() {
+                    tr_feedback.insert(key.to_string(), e[key].clone());
+                }
+            }
+            // Also capture the full score breakdown if present
+            if !e["components"].is_null() {
+                tr_feedback.insert("components".to_string(), e["components"].clone());
+            }
+            if !tr_feedback.is_empty() {
+                data.training_readiness_feedback = Some(serde_json::Value::Object(tr_feedback).to_string());
+            }
         }
     }
 

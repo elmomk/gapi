@@ -57,6 +57,9 @@ pub struct GarminDailyData {
     pub sleep_restless_moments: Option<i64>,
     pub sleep_avg_overnight_hr: Option<f64>,
     pub skin_temp_overnight: Option<f64>,
+    // Feedback / recommendations (JSON)
+    pub sleep_score_feedback: Option<String>,
+    pub training_readiness_feedback: Option<String>,
     // Sync metadata
     pub synced_at: DateTime<Utc>,
 }
