@@ -24,6 +24,11 @@ pub struct BaselineQuery {
     days: Option<i64>,
 }
 
+#[derive(Deserialize)]
+pub struct VitalsQuery {
+    sleep_target: Option<f64>,
+}
+
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
         .route("/users/{user_id}/daily", get(get_daily))
@@ -74,7 +79,9 @@ async fn get_baseline(
 async fn get_vitals(
     State(state): State<Arc<AppState>>,
     Path(user_id): Path<Uuid>,
+    Query(q): Query<VitalsQuery>,
 ) -> Result<Json<VitalsResponse>, StatusCode> {
+    let sleep_target = q.sleep_target.unwrap_or(7.0);
     let today = chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string();
 
     let daily = state.repo.get_daily(user_id, &today)
@@ -100,17 +107,19 @@ async fn get_vitals(
         None => (None, None, None, None, None),
     };
 
-    // Compute 14-day sleep debt (target 7h)
+    // Compute 14-day sleep debt
     let sleep_debt_hours = {
-        let end = chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string();
-        let start = (chrono::Utc::now().date_naive() - chrono::Duration::days(14)).format("%Y-%m-%d").to_string();
-        state.repo.get_daily_range(user_id, &start, &end)
+        let today = chrono::Utc::now().date_naive();
+        let start = (today - chrono::Duration::days(14)).format("%Y-%m-%d").to_string();
+        let yesterday = (today - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+        state.repo.get_daily_range(user_id, &start, &yesterday)
             .ok()
             .map(|days| {
-                let target_secs = 7.0 * 3600.0;
-                let debt: f64 = days.iter().map(|d| {
-                    target_secs - d.sleep_duration_secs.unwrap_or(0) as f64
-                }).sum();
+                let target_secs = sleep_target * 3600.0;
+                let debt: f64 = days.iter()
+                    .filter(|d| d.sleep_duration_secs.is_some())
+                    .map(|d| target_secs - d.sleep_duration_secs.unwrap() as f64)
+                    .sum();
                 debt / 3600.0
             })
     };

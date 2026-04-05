@@ -264,6 +264,26 @@ pub fn DashboardPage() -> impl IntoView {
                 }
             })}
 
+            // Sleep Debt (from vitals API)
+            {move || {
+                let debt = state.vitals.get().and_then(|v| v.sleep_debt_hours);
+                debt.map(|d| {
+                    let color = if d <= 2.0 { theme::GOOD } else if d <= 5.0 { theme::CHART_YELLOW } else { theme::WARN };
+                    let label = if d <= 0.0 { "surplus" } else { "deficit" };
+                    view! {
+                        <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
+                            <div class="metric-label mb-1">"Sleep Debt (14-day)"</div>
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-2xl font-display font-bold" style=format!("color: {}", color)>
+                                    {format!("{:.1}h", d)}
+                                </span>
+                                <span class="text-dim text-sm font-display">{label}</span>
+                            </div>
+                        </div>
+                    }
+                })
+            }}
+
             // Weekly Summary
             {move || {
                 let daily = state.daily_data.get();

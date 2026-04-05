@@ -19,6 +19,7 @@ pub struct VitalsData {
     pub baseline_stress: Option<f64>,
     pub baseline_battery: Option<f64>,
     pub baseline_sleep: Option<f64>,
+    pub sleep_debt_hours: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -101,7 +101,8 @@ impl AppState {
         let uid = self.user_id.get_untracked();
         let d = self.days.get_untracked();
 
-        match api::fetch_vitals(&url, &key, &uid).await {
+        let sleep_target = self.sleep_target_hours.get_untracked();
+        match api::fetch_vitals(&url, &key, &uid, sleep_target).await {
             Ok(v) => self.vitals.set(Some(v)),
             Err(e) => { self.status.set((format!("Error: {e}"), "err".into())); self.loading.set(false); return; }
         }

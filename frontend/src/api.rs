@@ -19,9 +19,9 @@ fn client(api_key: &str) -> Result<reqwest::Client, String> {
         .map_err(|e| format!("{e}"))
 }
 
-pub async fn fetch_vitals(base_url: &str, api_key: &str, user_id: &str) -> Result<VitalsData, String> {
+pub async fn fetch_vitals(base_url: &str, api_key: &str, user_id: &str, sleep_target: f64) -> Result<VitalsData, String> {
     let c = client(api_key)?;
-    let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/vitals"))
+    let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/vitals?sleep_target={sleep_target}"))
         .send().await.map_err(|e| format!("{e}"))?;
     if !resp.status().is_success() { return Err(format!("HTTP {}", resp.status())); }
     resp.json().await.map_err(|e| format!("{e}"))

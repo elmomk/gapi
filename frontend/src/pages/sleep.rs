@@ -12,8 +12,12 @@ fn compute_sleep_debt(daily: &[DailyData], target_hours: f64) -> (f64, Vec<(Stri
     let target_secs = target_hours * 3600.0;
     let mut debt = 0.0;
     let mut daily_debts = Vec::new();
-    for d in daily.iter().rev().take(14).rev() {
-        let slept = d.sleep_duration_secs.unwrap_or(0) as f64;
+    // Use last 14 days that have sleep data, exclude today (incomplete)
+    let sleep_days: Vec<&DailyData> = daily.iter().rev().skip(1)
+        .filter(|d| d.sleep_duration_secs.is_some())
+        .take(14).collect::<Vec<_>>().into_iter().rev().collect();
+    for d in &sleep_days {
+        let slept = d.sleep_duration_secs.unwrap() as f64;
         debt += target_secs - slept;
         daily_debts.push((d.date.clone(), debt / 3600.0));
     }
