@@ -246,6 +246,54 @@ pub fn DashboardPage() -> impl IntoView {
                         <VitalCard label="Steps" value=v.steps.map(|x| x as f64) unit="" baseline=None higher_is_better=true color=theme::CHART_GREEN />
                     </div>
 
+                    // Extra daily metrics
+                    {
+                        let d = state.daily_data.get();
+                        let today = d.last();
+                        let ext = state.extended_data.get();
+                        let ext_today = ext.last();
+                        let floors = today.and_then(|d| d.floors_climbed);
+                        let active_cal = today.and_then(|d| d.active_calories);
+                        let avg_resp = today.and_then(|d| d.avg_respiration);
+                        let fitness_age = ext_today.and_then(|e| e.fitness_age);
+                        let has_any = floors.is_some() || active_cal.is_some() || avg_resp.is_some() || fitness_age.is_some();
+                        if has_any {
+                            view! {
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                                    <VitalCard label="Active Cal" value=active_cal.map(|x| x as f64) unit="kcal" baseline=None higher_is_better=true color=theme::CHART_ORANGE />
+                                    <VitalCard label="Floors" value=floors.map(|x| x as f64) unit="" baseline=None higher_is_better=true color=theme::CHART_BLUE />
+                                    <VitalCard label="Respiration" value=avg_resp unit="brpm" baseline=None higher_is_better=false color=theme::CHART_PURPLE />
+                                    <VitalCard label="Fitness Age" value=fitness_age.map(|x| x as f64) unit="yrs" baseline=None higher_is_better=false color=theme::CHART_GREEN />
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
+                        }
+                    }
+
+                    // HRV Status badge
+                    {
+                        let d = state.daily_data.get();
+                        let hrv_status = d.last().and_then(|d| d.hrv_status.clone());
+                        if let Some(status) = hrv_status {
+                            let color = match status.as_str() {
+                                "BALANCED" | "HIGH" => theme::GOOD,
+                                "UNBALANCED" | "LOW" => theme::WARN,
+                                _ => theme::CHART_YELLOW,
+                            };
+                            view! {
+                                <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
+                                    <div class="flex items-center gap-3">
+                                        <span class="metric-label">"HRV Status"</span>
+                                        <span class="text-sm font-display font-semibold" style=format!("color: {}", color)>{status}</span>
+                                    </div>
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
+                        }
+                    }
+
                     // Gauges row
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                         <Gauge title="RHR".into() value=v.resting_heart_rate.map(|x| x as f64)

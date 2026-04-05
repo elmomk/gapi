@@ -150,7 +150,7 @@ pub fn TrendsPage() -> impl IntoView {
                 let d = state.daily_data.get();
                 if d.is_empty() { return view! { <div class="card text-dim">"Loading..."</div> }.into_any(); }
                 view! {
-                    // Steps, Distance, Calories
+                    // Steps, Distance, Calories, Floors
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <BarChart title="Daily Steps".into() data=bar_data(&d, |d| d.steps.map(|v| v as f64))
                             color=theme::CHART_GREEN.into() thresholds=vec![(10000.0, theme::GOOD.into())] unit="steps".into() />
@@ -158,6 +158,14 @@ pub fn TrendsPage() -> impl IntoView {
                             color=theme::CHART_BLUE.into() thresholds=vec![(8.0, theme::GOOD.into())] unit="km".into() />
                         <BarChart title="Daily Calories".into() data=bar_data(&d, |d| d.total_calories.map(|v| v as f64))
                             color=theme::CHART_ORANGE.into() unit="kcal".into() />
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                        <BarChart title="Active Calories".into() data=bar_data(&d, |d| d.active_calories.map(|v| v as f64))
+                            color=theme::CHART_RED.into() unit="kcal".into() />
+                        <BarChart title="Floors Climbed".into() data=bar_data(&d, |d| d.floors_climbed.map(|v| v as f64))
+                            color=theme::CHART_PURPLE.into() unit="floors".into() />
+                        <BarChart title="Intensity Minutes".into() data=bar_data(&d, |d| d.intensity_minutes.map(|v| v as f64))
+                            color=theme::CHART_ORANGE.into() unit="min".into() />
                     </div>
 
                     // Health metrics
@@ -201,26 +209,41 @@ pub fn TrendsPage() -> impl IntoView {
                                 let l = d.body_battery_low.unwrap_or(0) as f64;
                                 Some(h - l)
                             });
-                            let intensity: Vec<BarPoint> = d.iter().map(|d| BarPoint {
-                                label: d.date.clone(), value: d.intensity_minutes.unwrap_or(0) as f64, color: None,
-                            }).collect();
                             view! {
                                 <StackedBarChart title="Body Battery Charge/Drain".into() data=bb_stacked
                                     legend=vec![("Charged".into(), theme::BB_CHARGED.into()), ("Drained".into(), theme::BB_DRAINED.into())] />
                                 <BarChart title="Body Battery Range".into() data=bb_range color=theme::CHART_PURPLE.into() />
-                                <BarChart title="Intensity Minutes".into() data=intensity color=theme::CHART_ORANGE.into() unit="min".into() />
+                                <BarChart title="Sleep Score".into() data=bar_data(&d, |d| d.sleep_score.map(|v| v as f64))
+                                    color=theme::CHART_BLUE.into() thresholds=vec![(80.0, theme::GOOD.into())] />
                             }
                         }
                     </div>
 
-                    // Stress + Weight
+                    // Stress + Weight + Respiration
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                        <BarChart title="Daily Stress".into() data=bar_data(&d, |d| d.avg_stress.map(|v| v as f64))
-                            color=theme::CHART_RED.into()
-                            thresholds=vec![(50.0, theme::STRESS_MEDIUM.into()), (75.0, theme::STRESS_HIGH.into())] />
-                        <TimeseriesChart title="Weight".into()
-                            series=vec![series_data(&d, "Weight", |d| d.weight_grams.map(|v| v / 1000.0), theme::CHART_YELLOW)]
+                        <TimeseriesChart title="Stress (Avg & Max)".into()
+                            series=vec![
+                                series_data(&d, "Avg Stress", |d| d.avg_stress.map(|v| v as f64), theme::CHART_RED),
+                                series_data(&d, "Max Stress", |d| d.max_stress.map(|v| v as f64), theme::CHART_ORANGE),
+                            ] />
+                        <TimeseriesChart title="Weight & BMI".into()
+                            series=vec![
+                                series_data(&d, "Weight", |d| d.weight_grams.map(|v| v / 1000.0), theme::CHART_YELLOW),
+                                series_data(&d, "BMI", |d| d.bmi, theme::CHART_ORANGE),
+                            ]
                             unit="kg".into() />
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                        <TimeseriesChart title="Respiration & SpO2".into()
+                            series=vec![
+                                series_data(&d, "Respiration", |d| d.avg_respiration, theme::CHART_BLUE),
+                                series_data(&d, "Lowest SpO2", |d| d.lowest_spo2, theme::CHART_PURPLE),
+                            ] />
+                        <TimeseriesChart title="Overnight HR & Restless".into()
+                            series=vec![
+                                series_data(&d, "Overnight HR", |d| d.sleep_avg_overnight_hr, theme::CHART_RED),
+                                series_data(&d, "Restless", |d| d.sleep_restless_moments.map(|v| v as f64), theme::CHART_ORANGE),
+                            ] />
                     </div>
 
                     // Body Composition
@@ -242,6 +265,43 @@ pub fn TrendsPage() -> impl IntoView {
                                             series_data(&d, "Weight kg", |d| d.weight_grams.map(|v| v / 1000.0), theme::CHART_YELLOW),
                                             series_data(&d, "Body Fat %", |d| d.body_fat_pct, theme::CHART_ORANGE),
                                         ] />
+                                </div>
+                            }.into_any()
+                        } else {
+                            view! { <div></div> }.into_any()
+                        }
+                    }
+
+                    // Fitness Age & Race Predictors from extended data
+                    {
+                        let ext = state.extended_data.get();
+                        let has_fitness = ext.iter().any(|e| e.fitness_age.is_some());
+                        let has_race = ext.iter().any(|e| e.race_5k_secs.is_some());
+                        if has_fitness || has_race {
+                            let fmt_race = |secs: f64| -> f64 { secs / 60.0 }; // show in minutes
+                            view! {
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                                    {if has_fitness {
+                                        let pts: Vec<(f64, f64)> = ext.iter().enumerate()
+                                            .filter_map(|(i, e)| e.fitness_age.map(|v| (i as f64, v as f64))).collect();
+                                        view! {
+                                            <TimeseriesChart title="Fitness Age".into()
+                                                series=vec![Series { label: "Fitness Age".into(), points: pts, color: theme::CHART_GREEN.into(), fill: true }]
+                                                unit="years".into() />
+                                        }.into_any()
+                                    } else { view! { <div></div> }.into_any() }}
+                                    {if has_race {
+                                        view! {
+                                            <TimeseriesChart title="Race Predictors".into()
+                                                series=vec![
+                                                    Series { label: "5K".into(), points: ext.iter().enumerate().filter_map(|(i, e)| e.race_5k_secs.map(|v| (i as f64, fmt_race(v)))).collect(), color: theme::CHART_GREEN.into(), fill: false },
+                                                    Series { label: "10K".into(), points: ext.iter().enumerate().filter_map(|(i, e)| e.race_10k_secs.map(|v| (i as f64, fmt_race(v)))).collect(), color: theme::CHART_BLUE.into(), fill: false },
+                                                    Series { label: "Half".into(), points: ext.iter().enumerate().filter_map(|(i, e)| e.race_half_secs.map(|v| (i as f64, fmt_race(v)))).collect(), color: theme::CHART_ORANGE.into(), fill: false },
+                                                    Series { label: "Marathon".into(), points: ext.iter().enumerate().filter_map(|(i, e)| e.race_marathon_secs.map(|v| (i as f64, fmt_race(v)))).collect(), color: theme::CHART_RED.into(), fill: false },
+                                                ]
+                                                unit="min".into() />
+                                        }.into_any()
+                                    } else { view! { <div></div> }.into_any() }}
                                 </div>
                             }.into_any()
                         } else {

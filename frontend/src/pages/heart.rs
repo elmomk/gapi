@@ -63,22 +63,59 @@ pub fn HeartPage() -> impl IntoView {
 
             // Gauges
             {move || state.vitals.get().map(|v| {
-                let spo2 = state.daily_data.get().last().and_then(|d| d.avg_spo2);
+                let d = state.daily_data.get();
+                let today = d.last();
+                let spo2 = today.and_then(|d| d.avg_spo2);
+                let lowest_spo2 = today.and_then(|d| d.lowest_spo2);
+                let avg_hr = today.and_then(|d| d.avg_heart_rate);
+                let hrv_weekly = today.and_then(|d| d.hrv_weekly_avg);
+                let hrv_status = today.and_then(|d| d.hrv_status.clone());
+                let avg_resp = today.and_then(|d| d.avg_respiration);
                 view! {
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     <Gauge title="RHR".into() value=v.resting_heart_rate.map(|x| x as f64)
                         min=40.0 max=100.0 unit="bpm".into()
                         thresholds=vec![(40.0, theme::CHART_BLUE.into()), (60.0, theme::GOOD.into()), (70.0, theme::CHART_YELLOW.into()), (80.0, theme::WARN.into())] />
+                    <Gauge title="Avg HR".into() value=avg_hr.map(|x| x as f64)
+                        min=40.0 max=120.0 unit="bpm".into()
+                        thresholds=vec![(40.0, theme::CHART_BLUE.into()), (70.0, theme::GOOD.into()), (85.0, theme::CHART_YELLOW.into()), (100.0, theme::WARN.into())] />
                     <Gauge title="SpO2".into() value=spo2
                         min=85.0 max=100.0 unit="%".into()
                         thresholds=vec![(85.0, theme::WARN.into()), (90.0, theme::CHART_YELLOW.into()), (95.0, theme::GOOD.into())] />
                     <Gauge title="Body Battery".into() value=v.body_battery_high.map(|x| x as f64)
                         min=0.0 max=100.0 unit="%".into()
                         thresholds=vec![(0.0, theme::WARN.into()), (30.0, theme::CHART_YELLOW.into()), (60.0, theme::GOOD.into())] />
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                     <Gauge title="Stress".into() value=v.avg_stress.map(|x| x as f64)
                         min=0.0 max=100.0 unit="".into()
                         thresholds=vec![(0.0, theme::GOOD.into()), (40.0, theme::CHART_YELLOW.into()), (60.0, theme::WARN.into())] />
+                    <Gauge title="Respiration".into() value=avg_resp
+                        min=8.0 max=30.0 unit="brpm".into()
+                        thresholds=vec![(8.0, theme::CHART_BLUE.into()), (12.0, theme::GOOD.into()), (20.0, theme::CHART_YELLOW.into()), (25.0, theme::WARN.into())] />
+                    <Gauge title="Lowest SpO2".into() value=lowest_spo2
+                        min=85.0 max=100.0 unit="%".into()
+                        thresholds=vec![(85.0, theme::WARN.into()), (90.0, theme::CHART_YELLOW.into()), (95.0, theme::GOOD.into())] />
+                    <Gauge title="HRV Weekly".into() value=hrv_weekly
+                        min=0.0 max=150.0 unit="ms".into()
+                        thresholds=vec![(0.0, theme::WARN.into()), (30.0, theme::CHART_YELLOW.into()), (50.0, theme::GOOD.into())] />
                 </div>
+                // HRV Status badge
+                {hrv_status.map(|status| {
+                    let color = match status.as_str() {
+                        "BALANCED" | "HIGH" => theme::GOOD,
+                        "UNBALANCED" | "LOW" => theme::WARN,
+                        _ => theme::CHART_YELLOW,
+                    };
+                    view! {
+                        <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
+                            <div class="flex items-center gap-3">
+                                <span class="metric-label">"HRV Status"</span>
+                                <span class="text-sm font-display font-semibold" style=format!("color: {}", color)>{status}</span>
+                            </div>
+                        </div>
+                    }
+                })}
             }})}
 
             // 24h Heart Rate
@@ -135,8 +172,11 @@ pub fn HeartPage() -> impl IntoView {
                         <TimeseriesChart title="RHR & HRV Trend".into() series=vec![rhr_series, hrv_series] />
                         <StackedBarChart title="Heart Rate Range (Min-Max)".into() data=hr_range legend=vec![("Min".into(), "#181b1f".into()), ("Range".into(), theme::CHART_YELLOW.into())] />
                     </div>
-                    <TimeseriesChart title="Weight".into()
-                        series=vec![Series { label: "Weight".into(), points: d.iter().enumerate().filter_map(|(i, d)| d.weight_grams.map(|v| (i as f64, v / 1000.0))).collect(), color: theme::CHART_YELLOW.into(), fill: true }]
+                    <TimeseriesChart title="Weight & BMI".into()
+                        series=vec![
+                            Series { label: "Weight".into(), points: d.iter().enumerate().filter_map(|(i, d)| d.weight_grams.map(|v| (i as f64, v / 1000.0))).collect(), color: theme::CHART_YELLOW.into(), fill: true },
+                            Series { label: "BMI".into(), points: d.iter().enumerate().filter_map(|(i, d)| d.bmi.map(|v| (i as f64, v))).collect(), color: theme::CHART_ORANGE.into(), fill: false },
+                        ]
                         unit="kg".into() />
                 }.into_any()
             }}

@@ -153,6 +153,51 @@ pub fn SleepPage() -> impl IntoView {
                 }.into_any()
             }}
 
+            // Extra sleep metrics
+            {move || {
+                let d = state.daily_data.get();
+                let last = d.last();
+                let restless = last.and_then(|d| d.sleep_restless_moments);
+                let overnight_hr = last.and_then(|d| d.sleep_avg_overnight_hr);
+                let resp = last.and_then(|d| d.avg_respiration);
+                if restless.is_none() && overnight_hr.is_none() && resp.is_none() {
+                    return view! { <div></div> }.into_any();
+                }
+                view! {
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+                        {overnight_hr.map(|hr| {
+                            let color = if hr <= 60.0 { theme::GOOD } else if hr <= 70.0 { theme::CHART_YELLOW } else { theme::WARN };
+                            view! {
+                                <div class="card" style=format!("border-left: 3px solid {}", color)>
+                                    <div class="metric-label mb-1">"Avg Overnight HR"</div>
+                                    <span class="metric-value text-xl" style=format!("color: {}", color)>{format!("{:.0}", hr)}</span>
+                                    <span class="text-dim text-sm">" bpm"</span>
+                                </div>
+                            }
+                        })}
+                        {restless.map(|r| {
+                            let color = if r <= 10 { theme::GOOD } else if r <= 20 { theme::CHART_YELLOW } else { theme::WARN };
+                            view! {
+                                <div class="card" style=format!("border-left: 3px solid {}", color)>
+                                    <div class="metric-label mb-1">"Restless Moments"</div>
+                                    <span class="metric-value text-xl" style=format!("color: {}", color)>{format!("{}", r)}</span>
+                                </div>
+                            }
+                        })}
+                        {resp.map(|r| {
+                            let color = if r >= 12.0 && r <= 20.0 { theme::GOOD } else { theme::CHART_YELLOW };
+                            view! {
+                                <div class="card" style=format!("border-left: 3px solid {}", color)>
+                                    <div class="metric-label mb-1">"Avg Respiration"</div>
+                                    <span class="metric-value text-xl" style=format!("color: {}", color)>{format!("{:.1}", r)}</span>
+                                    <span class="text-dim text-sm">" brpm"</span>
+                                </div>
+                            }
+                        })}
+                    </div>
+                }.into_any()
+            }}
+
             // Sleep Score Feedback (Garmin recommendations)
             {move || {
                 let d = state.daily_data.get();
