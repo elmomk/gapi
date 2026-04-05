@@ -720,6 +720,17 @@ pub async fn fetch_all_daily_data(
                             if mod_mins > 0 || vig_mins > 0 {
                                 summary["total_intensity_mins"] = serde_json::json!(mod_mins + vig_mins * 2);
                             }
+                            // Update HR from detail (activity list often has wrong maxHR for strength)
+                            if let Some(hr) = json_i64(&s["maxHeartRate"])
+                                .or_else(|| json_i64(&detail["maxHR"]))
+                                .or_else(|| json_i64(&s["maxHR"])) {
+                                if hr > 0 { summary["max_hr"] = serde_json::json!(hr); }
+                            }
+                            if let Some(hr) = json_i64(&s["averageHeartRate"])
+                                .or_else(|| json_i64(&s["meanHeartRate"])) {
+                                if hr > 0 { summary["avg_hr"] = serde_json::json!(hr); }
+                            }
+
                             summary["body_battery_start"] = serde_json::json!(detail["beginBodyBattery"].as_i64()
                                 .or_else(|| s["startingBodyBattery"].as_i64())
                                 .or_else(|| detail["startBodyBattery"].as_i64())
