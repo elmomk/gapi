@@ -19,15 +19,19 @@ fn weekly_volume(daily: &[DailyData]) -> Vec<BarPoint> {
                 for a in &acts {
                     if let Some(vol) = a["total_volume_kg"].as_f64() {
                         if vol > 0.0 {
-                            let week = &d.date[..7]; // YYYY-MM as rough grouping
-                            *weeks.entry(week.to_string()).or_default() += vol;
+                            // Group by ISO week (Mon-Sun)
+                            if let Ok(date) = chrono::NaiveDate::parse_from_str(&d.date, "%Y-%m-%d") {
+                                let week = format!("{}-W{:02}", date.format("%Y"), date.iso_week().week());
+                                *weeks.entry(week).or_default() += vol;
+                            }
                         }
                     }
                 }
             }
         }
     }
-    weeks.into_iter().map(|(k, v)| BarPoint { label: k, value: v, color: None }).collect()
+    // Convert to tons
+    weeks.into_iter().map(|(k, v)| BarPoint { label: k, value: v / 1000.0, color: None }).collect()
 }
 
 #[component]
@@ -188,7 +192,7 @@ pub fn ActivityPage() -> impl IntoView {
                 if vol_data.is_empty() { return view! { <div></div> }.into_any(); }
                 view! {
                     <BarChart title="Weekly Training Volume".into() data=vol_data
-                        color=theme::CHART_ORANGE.into() unit="kg".into() />
+                        color=theme::CHART_ORANGE.into() unit="t".into() />
                 }.into_any()
             }}
 
