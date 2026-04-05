@@ -1,23 +1,44 @@
 # Garmin API
 
-Standalone Garmin Connect API service with Event-Driven Architecture. Handles OAuth authentication, background data sync, encrypted credential storage, and webhook-based event dispatch.
+Standalone Garmin Connect API service with event-driven architecture and a full health dashboard. Handles OAuth authentication, background data sync, encrypted credential storage, webhook-based event dispatch, and a Leptos WASM dashboard.
 
 Extracted from [gorilla_coach](https://github.com/elmomk/gorilla_coach) to serve as a shared data source for multiple consumers (gorilla_coach, life_manager, etc.) over a Tailscale private network.
+
+## Dashboard
+
+Cyberpunk-themed health dashboard built with Leptos (Rust WASM), served via nginx.
+
+| Dashboard | Training |
+|-----------|----------|
+| ![Dashboard](docs/dashboard.png) | ![Training](docs/training.png) |
+
+| Sleep | Heart & Body |
+|-------|-------------|
+| ![Sleep](docs/sleep.png) | ![Heart](docs/heart.png) |
+
+| Activity | Trends |
+|----------|--------|
+| ![Activity](docs/activity.png) | ![Trends](docs/trends.png) |
+
+**7 pages:** Dashboard (recovery score, vitals, alerts, heatmap), Heart & Body (HR, HRV, stress, SpO2, respiration, weight/BMI), Sleep (debt, stages, efficiency, feedback, intraday), Activity (consistency, volume, exercise details), Training (readiness, VO2 max, fitness age, race predictions, load trends), Trends (30+ charts with section grouping, correlations), Settings.
 
 ## What it does
 
 - Authenticates with Garmin Connect via SSO (OAuth1/OAuth2 + MFA support)
-- Syncs 12 health endpoints in parallel: steps, heart rate, HRV, sleep, stress, body battery, weight, SpO2, respiration, training readiness, training status, activities
-- Stores 42+ daily health metrics in SQLite
-- Emits webhook events (`daily_data_synced`, `sync_completed`, `sync_failed`) to registered consumers
+- Syncs 14 health endpoints in parallel: steps, heart rate, HRV, sleep, stress, body battery, weight, SpO2, respiration, training readiness, training status, activities, fitness age, race predictions
+- Stores 50+ daily health metrics + intraday time series in SQLite
+- Captures sleep score feedback (sub-score qualifiers, recommendations) and training readiness component breakdowns
+- Emits webhook events to registered consumers with HMAC-SHA256 signing
 - Exposes REST API for data queries, on-demand sync, credential management
+- Full Leptos WASM dashboard with cyberpunk theme
 
 ## Stack
 
-- **Rust** (Axum 0.8, Tokio)
+- **Rust** (Axum 0.8, Tokio) — backend API
+- **Leptos 0.7** (CSR, WASM) — frontend dashboard
 - **SQLite** (rusqlite + r2d2, WAL mode) — no DB container needed
 - **ChaCha20Poly1305** encryption for credentials at rest
-- **Docker + Tailscale** (2 containers: tailscale + app)
+- **Docker + Tailscale** — 2 compose stacks (API + dashboard), sidecar networking
 
 ## Quick Start
 
@@ -26,20 +47,21 @@ Extracted from [gorilla_coach](https://github.com/elmomk/gorilla_coach) to serve
 cp .env.example .env
 ./scripts/gen-keys.sh
 
-# Build and deploy
+# Build and deploy backend
 cargo build --release
+docker compose up -d --build
+
+# Build and deploy dashboard
+cd frontend && trunk build --release
 docker compose up -d --build
 
 # Set up Garmin account
 ./scripts/garmin-setup.sh
-
-# Or migrate existing session from gorilla_coach
-./scripts/migrate-session.sh
 ```
 
 ## REST API
 
-All endpoints require `X-API-Key` header.
+All `/api/v1` endpoints require `X-API-Key` header. `/health` is public.
 
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
@@ -51,7 +73,11 @@ All endpoints require `X-API-Key` header.
 | GET | `/api/v1/users/{id}/daily?date=YYYY-MM-DD` | Single day data |
 | GET | `/api/v1/users/{id}/daily?start=...&end=...` | Date range |
 | GET | `/api/v1/users/{id}/baseline?days=7` | N-day averages |
-| GET | `/api/v1/users/{id}/vitals` | Today + 7-day baseline |
+| GET | `/api/v1/users/{id}/vitals?sleep_target=7` | Today + 7-day baseline + sleep debt |
+| GET | `/api/v1/users/{id}/activities` | Activities with optional date range |
+| GET | `/api/v1/users/{id}/activities/{id}/gps` | GPS track data |
+| GET | `/api/v1/users/{id}/intraday/{type}?date=...` | Intraday HR, stress, steps, respiration, HRV, sleep, body battery |
+| GET | `/api/v1/users/{id}/daily-extended` | Extended metrics (fitness age, race predictions, stress breakdown) |
 | POST | `/api/v1/webhooks` | Register webhook |
 | GET | `/api/v1/webhooks` | List webhooks |
 | DELETE | `/api/v1/webhooks/{id}` | Remove webhook |
@@ -59,7 +85,7 @@ All endpoints require `X-API-Key` header.
 
 ## Events
 
-Webhooks are dispatched with HMAC-SHA256 signing and 3-retry exponential backoff.
+Webhooks dispatched with HMAC-SHA256 signing and 3-retry exponential backoff.
 
 | Event | When | Payload |
 |-------|------|---------|
@@ -70,7 +96,7 @@ Webhooks are dispatched with HMAC-SHA256 signing and 3-retry exponential backoff
 
 ## Configuration
 
-See [.env.example](.env.example) for all options. Key settings:
+See [.env.example](.env.example) for all options.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -92,19 +118,16 @@ See [.env.example](.env.example) for all options. Key settings:
 | `scripts/deploy.sh` | Build and deploy to Docker |
 | `scripts/dev.sh` | Run locally for development |
 
-## Dashboard
-
-Open `dashboard.html` in a browser for a test dashboard with vitals cards, trend charts (configurable 1-365 days), and activity view.
-
 ## Architecture
 
 ```
 garmin_api
 ├── Garmin Connect SSO ──── OAuth1/OAuth2 auth, MFA, token refresh
-├── Sync Engine ─────────── Hourly background sync + on-demand
-├── SQLite ──────────────── Encrypted credentials, daily health data
+├── Sync Engine ─────────── Hourly background sync (14 parallel endpoints)
+├── SQLite ──────────────── Encrypted credentials, daily + intraday data
 ├── Webhook Dispatcher ──── HMAC-signed event delivery with retries
-└── REST API ────────────── Axum handlers with API key auth
+├── REST API ────────────── Axum handlers with API key auth
+└── Dashboard ─────────────  Leptos WASM frontend (7 pages, nginx)
 ```
 
 Consumers (gorilla_coach, life_manager) subscribe to webhook events and/or query the REST API. No direct Garmin API knowledge needed in consumers.
