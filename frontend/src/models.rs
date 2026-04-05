@@ -122,6 +122,8 @@ pub struct DailyExtended {
     pub race_10k_secs: Option<f64>,
     pub race_half_secs: Option<f64>,
     pub race_marathon_secs: Option<f64>,
+    pub training_status_phase: Option<String>,
+    pub acute_training_load: Option<f64>,
     pub low_stress_secs: Option<i64>,
     pub medium_stress_secs: Option<i64>,
     pub high_stress_secs: Option<i64>,

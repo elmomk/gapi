@@ -150,7 +150,8 @@ pub fn TrendsPage() -> impl IntoView {
                 let d = state.daily_data.get();
                 if d.is_empty() { return view! { <div class="card text-dim">"Loading..."</div> }.into_any(); }
                 view! {
-                    // Steps, Distance, Calories, Floors
+                    // === Activity ===
+                    <h2 class="text-sm font-display font-semibold text-text mb-3">"Activity"</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         <BarChart title="Daily Steps".into() data=bar_data(&d, |d| d.steps.map(|v| v as f64))
                             color=theme::CHART_GREEN.into() thresholds=vec![(10000.0, theme::GOOD.into())] unit="steps".into() />
@@ -168,7 +169,8 @@ pub fn TrendsPage() -> impl IntoView {
                             color=theme::CHART_ORANGE.into() unit="min".into() />
                     </div>
 
-                    // Health metrics
+                    // === Cardiovascular ===
+                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Cardiovascular"</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                         <TimeseriesChart title="RHR & HRV".into()
                             series=vec![
@@ -182,19 +184,8 @@ pub fn TrendsPage() -> impl IntoView {
                             ] />
                     </div>
 
-                    // VO2 + Training
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                        <TimeseriesChart title="VO2 Max".into()
-                            series=vec![series_data(&d, "VO2", |d| d.vo2_max, theme::CHART_GREEN)]
-                            unit="ml/kg/min".into() />
-                        <TimeseriesChart title="Training Load & Readiness".into()
-                            series=vec![
-                                series_data(&d, "Load", |d| d.training_load, theme::CHART_ORANGE),
-                                series_data(&d, "Readiness", |d| d.training_readiness, theme::CHART_BLUE),
-                            ] />
-                    </div>
-
-                    // Body Battery
+                    // === Recovery ===
+                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Recovery"</h2>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                         {
                             let bb_stacked: Vec<StackedBarPoint> = d.iter().map(|day| StackedBarPoint {
@@ -219,7 +210,8 @@ pub fn TrendsPage() -> impl IntoView {
                         }
                     </div>
 
-                    // Stress + Weight + Respiration
+                    // === Body & Vitals ===
+                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Body & Vitals"</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                         <TimeseriesChart title="Stress (Avg & Max)".into()
                             series=vec![
@@ -309,7 +301,8 @@ pub fn TrendsPage() -> impl IntoView {
                         }
                     }
 
-                    // Stress breakdown + Activity levels from extended data
+                    // === Breakdowns ===
+                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Breakdowns"</h2>
                     {
                         let ext = state.extended_data.get();
                         if ext.is_empty() {

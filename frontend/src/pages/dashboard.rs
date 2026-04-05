@@ -2,7 +2,6 @@ use leptos::prelude::*;
 use crate::state::AppState;
 use crate::theme;
 use crate::models::{VitalsData, DailyData};
-use crate::components::charts::gauge::Gauge;
 use crate::components::charts::state_timeline::*;
 
 fn compute_recovery_score(vitals: &VitalsData, _daily: &[DailyData]) -> Option<f64> {
@@ -58,57 +57,33 @@ fn compute_weekly_summary(daily: &[DailyData]) -> Option<String> {
     if daily.len() < 7 { return None; }
     let this_week: Vec<&DailyData> = daily.iter().rev().take(7).collect();
     let prev_week: Vec<&DailyData> = daily.iter().rev().skip(7).take(7).collect();
-
-    // Avg sleep hours this week
-    let sleep_vals: Vec<f64> = this_week.iter()
-        .filter_map(|d| d.sleep_duration_secs.map(|s| s as f64 / 3600.0))
-        .collect();
+    let sleep_vals: Vec<f64> = this_week.iter().filter_map(|d| d.sleep_duration_secs.map(|s| s as f64 / 3600.0)).collect();
     let avg_sleep = if sleep_vals.is_empty() { None } else { Some(sleep_vals.iter().sum::<f64>() / sleep_vals.len() as f64) };
-    let prev_sleep_vals: Vec<f64> = prev_week.iter()
-        .filter_map(|d| d.sleep_duration_secs.map(|s| s as f64 / 3600.0))
-        .collect();
+    let prev_sleep_vals: Vec<f64> = prev_week.iter().filter_map(|d| d.sleep_duration_secs.map(|s| s as f64 / 3600.0)).collect();
     let prev_avg_sleep = if prev_sleep_vals.is_empty() { None } else { Some(prev_sleep_vals.iter().sum::<f64>() / prev_sleep_vals.len() as f64) };
     let sleep_delta = match (avg_sleep, prev_avg_sleep) {
-        (Some(a), Some(b)) => {
-            let d = a - b;
-            if d >= 0.0 { format!(" (+{:.1}h)", d) } else { format!(" ({:.1}h)", d) }
-        }
+        (Some(a), Some(b)) => { let d = a - b; if d >= 0.0 { format!(" (+{:.1}h)", d) } else { format!(" ({:.1}h)", d) } }
         _ => String::new(),
     };
-
-    // Training days
     let training_days = this_week.iter().filter(|d| d.activities_count.unwrap_or(0) > 0).count();
-
-    // HRV trend
     let hrv_7: Vec<f64> = this_week.iter().filter_map(|d| d.hrv_last_night).collect();
     let hrv_prev: Vec<f64> = prev_week.iter().filter_map(|d| d.hrv_last_night).collect();
     let hrv_trend = match (
         if hrv_7.is_empty() { None } else { Some(hrv_7.iter().sum::<f64>() / hrv_7.len() as f64) },
         if hrv_prev.is_empty() { None } else { Some(hrv_prev.iter().sum::<f64>() / hrv_prev.len() as f64) },
     ) {
-        (Some(a), Some(b)) if a > b * 1.05 => "\u{2191} trending up",
-        (Some(a), Some(b)) if a < b * 0.95 => "\u{2193} trending down",
+        (Some(a), Some(b)) if a > b * 1.05 => "\u{2191} up",
+        (Some(a), Some(b)) if a < b * 0.95 => "\u{2193} down",
         _ => "\u{2194} stable",
     };
-
-    // Total steps
     let total_steps: i64 = this_week.iter().filter_map(|d| d.steps).sum();
     let steps_str = if total_steps >= 1000 { format!("{}k steps", total_steps / 1000) } else { format!("{} steps", total_steps) };
-
-    // Weight change
-    let first_weight = this_week.last().and_then(|d| d.weight_grams);
-    let last_weight = this_week.first().and_then(|d| d.weight_grams);
-    let weight_str = match (first_weight, last_weight) {
-        (Some(f), Some(l)) => {
-            let delta_kg = (l - f) / 1000.0;
-            if delta_kg >= 0.0 { format!(", weight +{:.1}kg", delta_kg) } else { format!(", weight {:.1}kg", delta_kg) }
-        }
+    let weight_str = match (this_week.last().and_then(|d| d.weight_grams), this_week.first().and_then(|d| d.weight_grams)) {
+        (Some(f), Some(l)) => { let d = (l - f) / 1000.0; if d >= 0.0 { format!(", wt +{:.1}kg", d) } else { format!(", wt {:.1}kg", d) } }
         _ => String::new(),
     };
-
-    let sleep_str = avg_sleep.map(|s| format!("avg {:.1}h sleep{}", s, sleep_delta)).unwrap_or_else(|| "no sleep data".into());
-
-    Some(format!("This week: {}, HRV {}, {} training days, {}{}", sleep_str, hrv_trend, training_days, steps_str, weight_str))
+    let sleep_str = avg_sleep.map(|s| format!("{:.1}h sleep{}", s, sleep_delta)).unwrap_or_else(|| "no sleep data".into());
+    Some(format!("{}, HRV {}, {} training days, {}{}", sleep_str, hrv_trend, training_days, steps_str, weight_str))
 }
 
 #[component]
@@ -156,70 +131,6 @@ pub fn DashboardPage() -> impl IntoView {
                 })
             }}
 
-            // Training Readiness Feedback
-            {move || {
-                let d = state.daily_data.get();
-                let feedback_json = d.last().and_then(|day| day.training_readiness_feedback.as_ref())
-                    .and_then(|j| serde_json::from_str::<serde_json::Value>(j).ok());
-                let feedback_json = match feedback_json {
-                    Some(v) => v,
-                    None => return view! { <div></div> }.into_any(),
-                };
-                let components: Vec<(&str, &str, &str)> = vec![
-                    ("sleepComponent", "Sleep", theme::CHART_PURPLE),
-                    ("recoveryComponent", "Recovery", theme::CHART_GREEN),
-                    ("hrvComponent", "HRV", theme::CHART_ORANGE),
-                    ("acuteLoadComponent", "Acute Load", theme::CHART_RED),
-                    ("chronicLoadComponent", "Chronic Load", theme::CHART_BLUE),
-                    ("sleepHistoryComponent", "Sleep History", theme::SLEEP_LIGHT),
-                ];
-                let cards: Vec<_> = components.iter().filter_map(|(key, label, color)| {
-                    let val = &feedback_json[*key];
-                    if val.is_null() { return None; }
-                    // Component can be a number (score) or an object with score/feedback
-                    let score = val.as_f64()
-                        .or_else(|| val["score"].as_f64())
-                        .or_else(|| val["value"].as_f64());
-                    let score = score?;
-                    let feedback = val["feedback"].as_str()
-                        .or_else(|| val["description"].as_str());
-                    let score_color = if score >= 66.0 { theme::GOOD }
-                        else if score >= 33.0 { theme::CHART_YELLOW }
-                        else { theme::WARN };
-                    Some(view! {
-                        <div class="card" style=format!("border-left: 3px solid {}", color)>
-                            <div class="metric-label mb-1">{label.to_string()}</div>
-                            <span class="metric-value text-xl" style=format!("color: {}", score_color)>
-                                {format!("{:.0}", score)}
-                            </span>
-                            {feedback.map(|f| view! {
-                                <div class="text-dim text-xs mt-1">{f.to_string()}</div>
-                            })}
-                        </div>
-                    })
-                }).collect();
-                let level = feedback_json["level"].as_str()
-                    .or_else(|| feedback_json["levelDescription"].as_str());
-                let message = feedback_json["readinessMessage"].as_str()
-                    .or_else(|| feedback_json["feedback"].as_str());
-                if cards.is_empty() && level.is_none() && message.is_none() {
-                    return view! { <div></div> }.into_any();
-                }
-                view! {
-                    <div class="mb-6">
-                        <h2 class="text-sm font-display font-semibold text-text mb-3">"Training Readiness"</h2>
-                        {message.map(|m| view! {
-                            <div class="card mb-3" style=format!("border-left: 3px solid {}", theme::INFO)>
-                                <span class="text-sm" style=format!("color: {}", theme::TEXT)>{m.to_string()}</span>
-                            </div>
-                        })}
-                        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                            {cards}
-                        </div>
-                    </div>
-                }.into_any()
-            }}
-
             // Loading skeletons
             <Show when=move || state.loading.get() && state.vitals.get().is_none()>
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -230,7 +141,7 @@ pub fn DashboardPage() -> impl IntoView {
                 </div>
             </Show>
 
-            // Vitals grid
+            // Vitals grid (2 rows of 4)
             {move || state.vitals.get().map(|v| {
                 view! {
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -245,91 +156,62 @@ pub fn DashboardPage() -> impl IntoView {
                         <VitalCard label="Readiness" value=v.training_readiness unit="" baseline=None higher_is_better=true color=theme::CHART_BLUE />
                         <VitalCard label="Steps" value=v.steps.map(|x| x as f64) unit="" baseline=None higher_is_better=true color=theme::CHART_GREEN />
                     </div>
+                }
+            })}
 
-                    // Extra daily metrics
-                    {
-                        let d = state.daily_data.get();
-                        let today = d.last();
-                        let ext = state.extended_data.get();
-                        let ext_today = ext.last();
-                        let floors = today.and_then(|d| d.floors_climbed);
-                        let active_cal = today.and_then(|d| d.active_calories);
-                        let avg_resp = today.and_then(|d| d.avg_respiration);
-                        let fitness_age = ext_today.and_then(|e| e.fitness_age);
-                        let has_any = floors.is_some() || active_cal.is_some() || avg_resp.is_some() || fitness_age.is_some();
-                        if has_any {
-                            view! {
-                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                                    <VitalCard label="Active Cal" value=active_cal.map(|x| x as f64) unit="kcal" baseline=None higher_is_better=true color=theme::CHART_ORANGE />
-                                    <VitalCard label="Floors" value=floors.map(|x| x as f64) unit="" baseline=None higher_is_better=true color=theme::CHART_BLUE />
-                                    <VitalCard label="Respiration" value=avg_resp unit="brpm" baseline=None higher_is_better=false color=theme::CHART_PURPLE />
-                                    <VitalCard label="Fitness Age" value=fitness_age.map(|x| x as f64) unit="yrs" baseline=None higher_is_better=false color=theme::CHART_GREEN />
-                                </div>
-                            }.into_any()
-                        } else {
-                            view! { <div></div> }.into_any()
-                        }
-                    }
+            // Compact status row: HRV status + Sleep Debt + Training Phase
+            {move || {
+                let d = state.daily_data.get();
+                let ext = state.extended_data.get();
+                let hrv_status = d.last().and_then(|d| d.hrv_status.clone());
+                let debt = state.vitals.get().and_then(|v| v.sleep_debt_hours);
+                let phase = ext.last().and_then(|e| e.training_status_phase.clone());
 
-                    // HRV Status badge
-                    {
-                        let d = state.daily_data.get();
-                        let hrv_status = d.last().and_then(|d| d.hrv_status.clone());
-                        if let Some(status) = hrv_status {
+                let has_any = hrv_status.is_some() || debt.is_some() || phase.is_some();
+                if !has_any { return view! { <div></div> }.into_any(); }
+
+                view! {
+                    <div class="flex flex-wrap gap-3 mb-6">
+                        {hrv_status.map(|status| {
                             let color = match status.as_str() {
                                 "BALANCED" | "HIGH" => theme::GOOD,
                                 "UNBALANCED" | "LOW" => theme::WARN,
                                 _ => theme::CHART_YELLOW,
                             };
                             view! {
-                                <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
-                                    <div class="flex items-center gap-3">
-                                        <span class="metric-label">"HRV Status"</span>
-                                        <span class="text-sm font-display font-semibold" style=format!("color: {}", color)>{status}</span>
-                                    </div>
+                                <div class="card flex-1 min-w-[140px]" style=format!("border-left: 3px solid {}", color)>
+                                    <span class="metric-label">"HRV "</span>
+                                    <span class="text-sm font-display font-semibold" style=format!("color: {}", color)>{status}</span>
                                 </div>
-                            }.into_any()
-                        } else {
-                            view! { <div></div> }.into_any()
-                        }
-                    }
-
-                    // Gauges row
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-                        <Gauge title="RHR".into() value=v.resting_heart_rate.map(|x| x as f64)
-                            min=40.0 max=100.0 unit="bpm".into()
-                            thresholds=vec![(40.0, theme::CHART_BLUE.into()), (60.0, theme::GOOD.into()), (70.0, theme::CHART_YELLOW.into()), (80.0, theme::WARN.into())] />
-                        <Gauge title="Steps".into() value=v.steps.map(|x| x as f64)
-                            min=0.0 max=15000.0 unit="".into()
-                            thresholds=vec![(0.0, theme::WARN.into()), (5000.0, theme::CHART_ORANGE.into()), (10000.0, theme::GOOD.into())] />
-                        <Gauge title="Body Battery".into() value=v.body_battery_high.map(|x| x as f64)
-                            min=0.0 max=100.0 unit="%".into()
-                            thresholds=vec![(0.0, theme::WARN.into()), (30.0, theme::CHART_YELLOW.into()), (60.0, theme::GOOD.into())] />
-                        <Gauge title="Sleep".into() value=v.sleep_hours
-                            min=0.0 max=10.0 unit="hrs".into()
-                            thresholds=vec![(0.0, theme::WARN.into()), (5.0, theme::CHART_YELLOW.into()), (7.0, theme::GOOD.into())] />
+                            }
+                        })}
+                        {debt.map(|d| {
+                            let color = if d <= 2.0 { theme::GOOD } else if d <= 5.0 { theme::CHART_YELLOW } else { theme::WARN };
+                            let label = if d <= 0.0 { "surplus" } else { "deficit" };
+                            view! {
+                                <div class="card flex-1 min-w-[140px]" style=format!("border-left: 3px solid {}", color)>
+                                    <span class="metric-label">"Sleep Debt "</span>
+                                    <span class="text-sm font-display font-bold" style=format!("color: {}", color)>{format!("{:.1}h", d)}</span>
+                                    <span class="text-dim text-xs">" "{label}</span>
+                                </div>
+                            }
+                        })}
+                        {phase.map(|p| {
+                            let color = match p.as_str() {
+                                "PRODUCTIVE" | "PEAKING" => theme::GOOD,
+                                "RECOVERY" | "MAINTAINING" => theme::CHART_YELLOW,
+                                "UNPRODUCTIVE" | "DETRAINING" | "OVERREACHING" => theme::WARN,
+                                _ => theme::INFO,
+                            };
+                            view! {
+                                <div class="card flex-1 min-w-[140px]" style=format!("border-left: 3px solid {}", color)>
+                                    <span class="metric-label">"Training "</span>
+                                    <span class="text-sm font-display font-semibold" style=format!("color: {}", color)>{p}</span>
+                                </div>
+                            }
+                        })}
                     </div>
-                }
-            })}
-
-            // Sleep Debt (from vitals API)
-            {move || {
-                let debt = state.vitals.get().and_then(|v| v.sleep_debt_hours);
-                debt.map(|d| {
-                    let color = if d <= 2.0 { theme::GOOD } else if d <= 5.0 { theme::CHART_YELLOW } else { theme::WARN };
-                    let label = if d <= 0.0 { "surplus" } else { "deficit" };
-                    view! {
-                        <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
-                            <div class="metric-label mb-1">"Sleep Debt (14-day)"</div>
-                            <div class="flex items-baseline gap-2">
-                                <span class="text-2xl font-display font-bold" style=format!("color: {}", color)>
-                                    {format!("{:.1}h", d)}
-                                </span>
-                                <span class="text-dim text-sm font-display">{label}</span>
-                            </div>
-                        </div>
-                    }
-                })
+                }.into_any()
             }}
 
             // Weekly Summary
@@ -392,39 +274,6 @@ pub fn DashboardPage() -> impl IntoView {
                         make_row("Stress", |d| d.avg_stress.map(|v| v as f64), theme::CHART_GREEN, theme::CHART_RED),
                         make_row("Battery", |d| d.body_battery_high.map(|v| v as f64), theme::CHART_RED, theme::CHART_GREEN),
                     ] />
-                }.into_any()
-            }}
-
-            // Today's activities
-            {move || {
-                let d = state.daily_data.get();
-                let today_acts = d.last().and_then(|day| day.activities_json.as_ref())
-                    .and_then(|j| serde_json::from_str::<Vec<crate::models::Activity>>(j).ok())
-                    .unwrap_or_default();
-                if today_acts.is_empty() { return view! { <div></div> }.into_any(); }
-                view! {
-                    <h2 class="text-sm font-display font-semibold text-text mt-6 mb-3">"Today's Activities"</h2>
-                    <div class="grid gap-2">
-                        {today_acts.into_iter().map(|a| {
-                            let name = a.name.unwrap_or_else(|| "Activity".into());
-                            let atype = a.activity_type.unwrap_or_default();
-                            let dur = a.duration_secs.map(|s| theme::fmt_duration(s)).unwrap_or_default();
-                            let hr = a.avg_hr.map(|h| format!("{} bpm", h)).unwrap_or_default();
-                            let cal = a.calories.map(|c| format!("{} cal", c)).unwrap_or_default();
-                            view! {
-                                <div class="card flex justify-between items-center">
-                                    <div>
-                                        <div class="font-display font-semibold">{name}</div>
-                                        <div class="text-dim text-xs">{atype} " " {dur}</div>
-                                    </div>
-                                    <div class="text-right text-sm">
-                                        <div class="text-heart">{hr}</div>
-                                        <div class="text-dim">{cal}</div>
-                                    </div>
-                                </div>
-                            }
-                        }).collect::<Vec<_>>()}
-                    </div>
                 }.into_any()
             }}
         </div>

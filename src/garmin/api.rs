@@ -241,6 +241,22 @@ pub async fn fetch_all_daily_data(
         if was_rate_limited(res) { rate_limited = true; break; }
     }
 
+    // Fetch fitness age & race predictions (second parallel batch)
+    let (fa_res, rp_res) = if !rate_limited {
+        let fa_path = format!("/fitnessage-service/fitnessage/{}", date);
+        let rp_path = format!("/metrics-service/metrics/racepredictions/{}", date);
+        let (fa, rp) = tokio::join!(
+            garmin_connect_api(client, access_token, &fa_path),
+            garmin_connect_api(client, access_token, &rp_path),
+        );
+        for res in [&fa, &rp] {
+            if was_rate_limited(res) { rate_limited = true; break; }
+        }
+        (Some(fa), Some(rp))
+    } else {
+        (None, None)
+    };
+
     // 1. Daily Summary
     if let Ok(v) = summary_res {
         data.steps = json_i64(&v["totalSteps"]);
@@ -588,6 +604,40 @@ pub async fn fetch_all_daily_data(
         if data.training_load.is_none() {
             data.training_load = v["trainingLoad7Day"].as_f64()
                 .or_else(|| v["acuteTrainingLoad"].as_f64());
+        }
+        // Training status phase & acute load
+        extended.training_status_phase = v["currentTrainingStatus"].as_str()
+            .or_else(|| v["trainingStatusPhase"].as_str())
+            .or_else(|| v["trainingStatus"].as_str())
+            .or_else(|| v["mostRecentTrainingStatus"]["trainingStatus"].as_str())
+            .map(|s| s.to_string());
+        extended.acute_training_load = v["acuteTrainingLoad"].as_f64()
+            .or_else(|| v["mostRecentTrainingLoadBalance"]["acuteTrainingLoad"].as_f64());
+    }
+
+    // 13. Fitness Age
+    if let Some(Ok(v)) = fa_res {
+        extended.fitness_age = v["fitnessAge"].as_i64()
+            .or_else(|| json_i64(&v["fitnessAge"]))
+            .or_else(|| v["data"]["fitnessAge"].as_i64());
+    }
+
+    // 14. Race Predictions
+    if let Some(Ok(v)) = rp_res {
+        let entry = if v.is_array() { v.as_array().and_then(|a| a.first().cloned()) } else { Some(v.clone()) };
+        if let Some(e) = entry {
+            extended.race_5k_secs = e["race5kTimeInSeconds"].as_f64()
+                .or_else(|| e["race5KTimeSeconds"].as_f64())
+                .or_else(|| e["racePredictions"]["5k"].as_f64());
+            extended.race_10k_secs = e["race10kTimeInSeconds"].as_f64()
+                .or_else(|| e["race10KTimeSeconds"].as_f64())
+                .or_else(|| e["racePredictions"]["10k"].as_f64());
+            extended.race_half_secs = e["raceHalfMarathonTimeInSeconds"].as_f64()
+                .or_else(|| e["raceHalfMarathonTimeSeconds"].as_f64())
+                .or_else(|| e["racePredictions"]["halfMarathon"].as_f64());
+            extended.race_marathon_secs = e["raceMarathonTimeInSeconds"].as_f64()
+                .or_else(|| e["raceMarathonTimeSeconds"].as_f64())
+                .or_else(|| e["racePredictions"]["marathon"].as_f64());
         }
     }
 

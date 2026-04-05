@@ -30,6 +30,7 @@ fn App() -> impl IntoView {
                     <Route path=path!("/heart") view=heart::HeartPage />
                     <Route path=path!("/sleep") view=sleep::SleepPage />
                     <Route path=path!("/activity") view=activity::ActivityPage />
+                    <Route path=path!("/training") view=training::TrainingPage />
                     <Route path=path!("/trends") view=trends::TrendsPage />
                     <Route path=path!("/settings") view=settings::SettingsPage />
                 </Routes>
@@ -184,6 +185,7 @@ fn Layout(children: Children) -> impl IntoView {
                     <BottomNavItem href="/heart" icon="heart" label="Heart" />
                     <BottomNavItem href="/sleep" icon="moon" label="Sleep" />
                     <BottomNavItem href="/activity" icon="activity" label="Activity" />
+                    <BottomNavItem href="/training" icon="zap" label="Train" />
                     <BottomNavItem href="/trends" icon="trending" label="Trends" />
                 </div>
             </nav>
@@ -199,6 +201,7 @@ fn NavItems() -> impl IntoView {
             <a href="/heart" class="nav-item"><NavIcon icon="heart" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Heart & Body"</span></a>
             <a href="/sleep" class="nav-item"><NavIcon icon="moon" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Sleep"</span></a>
             <a href="/activity" class="nav-item"><NavIcon icon="activity" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Activity"</span></a>
+            <a href="/training" class="nav-item"><NavIcon icon="zap" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Training"</span></a>
             <a href="/trends" class="nav-item"><NavIcon icon="trending" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Trends"</span></a>
             <a href="/settings" class="nav-item mt-auto"><NavIcon icon="settings" /><span class="md:opacity-0 md:group-hover:opacity-100 transition-opacity">"Settings"</span></a>
         </div>
@@ -212,6 +215,7 @@ fn NavIcon(icon: &'static str) -> impl IntoView {
         "heart" => "M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z",
         "moon" => "M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z",
         "activity" => "M22 12h-4l-3 9L9 3l-3 9H2",
+        "zap" => "M13 2L3 14h9l-1 10 10-12h-9l1-10",
         "trending" => "M23 6l-9.5 9.5-5-5L1 18",
         "settings" => "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z",
         _ => "",
