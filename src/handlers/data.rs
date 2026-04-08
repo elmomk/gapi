@@ -27,6 +27,7 @@ pub struct BaselineQuery {
 #[derive(Deserialize)]
 pub struct VitalsQuery {
     sleep_target: Option<f64>,
+    date: Option<String>,
 }
 
 pub fn routes() -> Router<Arc<AppState>> {
@@ -82,12 +83,12 @@ async fn get_vitals(
     Query(q): Query<VitalsQuery>,
 ) -> Result<Json<VitalsResponse>, StatusCode> {
     let sleep_target = q.sleep_target.unwrap_or(7.0);
-    let today = chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string();
+    let date = q.date.unwrap_or_else(|| chrono::Utc::now().date_naive().format("%Y-%m-%d").to_string());
 
-    let daily = state.repo.get_daily(user_id, &today)
+    let daily = state.repo.get_daily(user_id, &date)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let baseline = state.repo.get_baseline(user_id, &today, 7)
+    let baseline = state.repo.get_baseline(user_id, &date, 7)
         .ok();
 
     let (data_hrv, data_status, data_rhr, data_stress, data_bb_high, data_bb_low,

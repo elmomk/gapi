@@ -8,8 +8,13 @@ mod state;
 use leptos::prelude::*;
 use leptos_router::components::*;
 use leptos_router::path;
+use chrono::NaiveDate;
 use pages::*;
 use state::AppState;
+
+fn local_today() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
 
 fn main() {
     console_error_panic_hook::set_once();
@@ -117,7 +122,62 @@ fn Layout(children: Children) -> impl IntoView {
                                     }.into_any()
                                 }
                             }}
-                            <span class="text-dim text-sm hidden sm:inline">{move || chrono::Utc::now().format("%a, %b %d").to_string()}</span>
+                            <div class="flex items-center gap-1 hidden sm:flex">
+                                <button
+                                    class="text-dim hover:text-text transition-colors px-1"
+                                    on:click=move |_| {
+                                        let current = state.selected_date.get();
+                                        if let Some(d) = NaiveDate::parse_from_str(&current, "%Y-%m-%d").ok() {
+                                            let prev = (d - chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+                                            let s = state;
+                                            leptos::task::spawn_local(async move { s.load_for_date(&prev).await; });
+                                        }
+                                    }
+                                >
+                                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                                </button>
+                                <button
+                                    class="text-dim hover:text-text text-sm px-1 min-w-[5rem] text-center"
+                                    on:click=move |_| {
+                                        let today = local_today();
+                                        let s = state;
+                                        leptos::task::spawn_local(async move { s.load_for_date(&today).await; });
+                                    }
+                                >
+                                    {move || {
+                                        let sel = state.selected_date.get();
+                                        let today = local_today();
+                                        if sel == today {
+                                            "Today".to_string()
+                                        } else if let Some(d) = NaiveDate::parse_from_str(&sel, "%Y-%m-%d").ok() {
+                                            d.format("%a, %b %d").to_string()
+                                        } else {
+                                            sel
+                                        }
+                                    }}
+                                </button>
+                                <button
+                                    class="transition-colors px-1"
+                                    class:text-dim=move || state.selected_date.get() != local_today()
+                                    class:text-surface=move || state.selected_date.get() == local_today()
+                                    class:cursor-not-allowed=move || state.selected_date.get() == local_today()
+                                    class:hover:text-text=move || state.selected_date.get() != local_today()
+                                    disabled=move || state.selected_date.get() == local_today()
+                                    on:click=move |_| {
+                                        let current = state.selected_date.get();
+                                        let today = local_today();
+                                        if current != today {
+                                            if let Some(d) = NaiveDate::parse_from_str(&current, "%Y-%m-%d").ok() {
+                                                let next = (d + chrono::Duration::days(1)).format("%Y-%m-%d").to_string();
+                                                let s = state;
+                                                leptos::task::spawn_local(async move { s.load_for_date(&next).await; });
+                                            }
+                                        }
+                                    }
+                                >
+                                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                                </button>
+                            </div>
                             <span class="text-dim text-xs hidden sm:inline">{move || {
                                 let users = state.users.get();
                                 let uid = state.user_id.get();

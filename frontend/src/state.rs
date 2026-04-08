@@ -2,6 +2,10 @@ use leptos::prelude::*;
 use crate::models::*;
 use crate::api;
 
+fn local_today() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
 #[derive(Clone, Copy)]
 pub struct AppState {
     pub api_url: RwSignal<String>,
@@ -17,6 +21,7 @@ pub struct AppState {
     pub intraday_sleep: RwSignal<Vec<SleepEpoch>>,
     pub intraday_resp: RwSignal<Vec<IntradayPointF64>>,
     pub extended_data: RwSignal<Vec<DailyExtended>>,
+    pub selected_date: RwSignal<String>,
     pub sleep_target_hours: RwSignal<f64>,
     pub loading: RwSignal<bool>,
     pub status: RwSignal<(String, String)>,
@@ -38,6 +43,7 @@ impl AppState {
             intraday_sleep: RwSignal::new(Vec::new()),
             intraday_resp: RwSignal::new(Vec::new()),
             extended_data: RwSignal::new(Vec::new()),
+            selected_date: RwSignal::new(local_today()),
             sleep_target_hours: RwSignal::new(
                 crate::load_setting("sleep_target_hours", "7.0").parse().unwrap_or(7.0)
             ),
@@ -102,7 +108,8 @@ impl AppState {
         let d = self.days.get_untracked();
 
         let sleep_target = self.sleep_target_hours.get_untracked();
-        match api::fetch_vitals(&url, &key, &uid, sleep_target).await {
+        let date = self.selected_date.get_untracked();
+        match api::fetch_vitals(&url, &key, &uid, sleep_target, &date).await {
             Ok(v) => self.vitals.set(Some(v)),
             Err(e) => { self.status.set((format!("Error: {e}"), "err".into())); self.loading.set(false); return; }
         }
@@ -112,13 +119,35 @@ impl AppState {
             Err(e) => { self.status.set((format!("Error: {e}"), "err".into())); }
         }
 
-        let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-        self.intraday_hr.set(api::fetch_intraday_hr(&url, &key, &uid, &today).await.unwrap_or_default());
-        self.intraday_stress.set(api::fetch_intraday_stress(&url, &key, &uid, &today).await.unwrap_or_default());
-        self.intraday_hrv.set(api::fetch_intraday_hrv(&url, &key, &uid, &today).await.unwrap_or_default());
-        self.intraday_sleep.set(api::fetch_intraday_sleep(&url, &key, &uid, &today).await.unwrap_or_default());
-        self.intraday_resp.set(api::fetch_intraday_respiration(&url, &key, &uid, &today).await.unwrap_or_default());
+        self.intraday_hr.set(api::fetch_intraday_hr(&url, &key, &uid, &date).await.unwrap_or_default());
+        self.intraday_stress.set(api::fetch_intraday_stress(&url, &key, &uid, &date).await.unwrap_or_default());
+        self.intraday_hrv.set(api::fetch_intraday_hrv(&url, &key, &uid, &date).await.unwrap_or_default());
+        self.intraday_sleep.set(api::fetch_intraday_sleep(&url, &key, &uid, &date).await.unwrap_or_default());
+        self.intraday_resp.set(api::fetch_intraday_respiration(&url, &key, &uid, &date).await.unwrap_or_default());
         self.extended_data.set(api::fetch_daily_extended(&url, &key, &uid, d).await.unwrap_or_default());
+
+        self.loading.set(false);
+    }
+
+    pub async fn load_for_date(&self, date: &str) {
+        self.selected_date.set(date.to_string());
+        self.loading.set(true);
+
+        let url = self.api_url.get_untracked();
+        let key = self.api_key.get_untracked();
+        let uid = self.user_id.get_untracked();
+        let sleep_target = self.sleep_target_hours.get_untracked();
+
+        match api::fetch_vitals(&url, &key, &uid, sleep_target, date).await {
+            Ok(v) => self.vitals.set(Some(v)),
+            Err(e) => { self.status.set((format!("Error: {e}"), "err".into())); self.loading.set(false); return; }
+        }
+
+        self.intraday_hr.set(api::fetch_intraday_hr(&url, &key, &uid, date).await.unwrap_or_default());
+        self.intraday_stress.set(api::fetch_intraday_stress(&url, &key, &uid, date).await.unwrap_or_default());
+        self.intraday_hrv.set(api::fetch_intraday_hrv(&url, &key, &uid, date).await.unwrap_or_default());
+        self.intraday_sleep.set(api::fetch_intraday_sleep(&url, &key, &uid, date).await.unwrap_or_default());
+        self.intraday_resp.set(api::fetch_intraday_respiration(&url, &key, &uid, date).await.unwrap_or_default());
 
         self.loading.set(false);
     }

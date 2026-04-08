@@ -93,7 +93,37 @@ pub fn DashboardPage() -> impl IntoView {
     view! {
         <div class="animate-slide-up">
             <h1 class="page-title">"Dashboard"</h1>
-            <p class="page-subtitle">"// system status: online"</p>
+            <p class="page-subtitle">{move || {
+                let sel = state.selected_date.get();
+                let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+                let date_label = if sel == today {
+                    chrono::Local::now().format("%A, %B %d").to_string()
+                } else if let Ok(d) = chrono::NaiveDate::parse_from_str(&sel, "%Y-%m-%d") {
+                    d.format("%A, %B %d").to_string()
+                } else {
+                    sel.clone()
+                };
+                let sync_label = {
+                    let users = state.users.get();
+                    let uid = state.user_id.get();
+                    users.iter().find(|u| u.user_id == uid)
+                        .and_then(|u| u.last_sync_at)
+                        .map(|ts| {
+                            let elapsed = chrono::Utc::now().timestamp() as f64 - ts;
+                            let mins = (elapsed / 60.0) as i64;
+                            if mins < 1 { "just now".to_string() }
+                            else if mins < 60 { format!("{}m ago", mins) }
+                            else if mins < 1440 { format!("{}h ago", mins / 60) }
+                            else { format!("{}d ago", mins / 1440) }
+                        })
+                        .unwrap_or_default()
+                };
+                if sync_label.is_empty() {
+                    format!("// {}", date_label)
+                } else {
+                    format!("// {} · synced {}", date_label, sync_label)
+                }
+            }}</p>
 
             // Recovery Score Card
             {move || {

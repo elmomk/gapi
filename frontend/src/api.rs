@@ -1,5 +1,13 @@
 use crate::models::*;
 
+fn local_today() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
+fn local_days_ago(days: i64) -> String {
+    (chrono::Local::now() - chrono::Duration::days(days)).format("%Y-%m-%d").to_string()
+}
+
 pub async fn fetch_users(base_url: &str, api_key: &str) -> Result<Vec<GarminUser>, String> {
     let c = client(api_key)?;
     let resp = c.get(format!("{base_url}/api/v1/users"))
@@ -19,9 +27,9 @@ fn client(api_key: &str) -> Result<reqwest::Client, String> {
         .map_err(|e| format!("{e}"))
 }
 
-pub async fn fetch_vitals(base_url: &str, api_key: &str, user_id: &str, sleep_target: f64) -> Result<VitalsData, String> {
+pub async fn fetch_vitals(base_url: &str, api_key: &str, user_id: &str, sleep_target: f64, date: &str) -> Result<VitalsData, String> {
     let c = client(api_key)?;
-    let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/vitals?sleep_target={sleep_target}"))
+    let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/vitals?sleep_target={sleep_target}&date={date}"))
         .send().await.map_err(|e| format!("{e}"))?;
     if !resp.status().is_success() { return Err(format!("HTTP {}", resp.status())); }
     resp.json().await.map_err(|e| format!("{e}"))
@@ -29,8 +37,8 @@ pub async fn fetch_vitals(base_url: &str, api_key: &str, user_id: &str, sleep_ta
 
 pub async fn fetch_daily_range(base_url: &str, api_key: &str, user_id: &str, days: i64) -> Result<Vec<DailyData>, String> {
     let c = client(api_key)?;
-    let end = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let start = (chrono::Utc::now() - chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+    let end = local_today();
+    let start = local_days_ago(days);
     let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/daily"))
         .query(&[("start", &start), ("end", &end)])
         .send().await.map_err(|e| format!("{e}"))?;
@@ -90,8 +98,8 @@ pub async fn fetch_intraday_sleep(base_url: &str, api_key: &str, user_id: &str, 
 
 pub async fn fetch_daily_extended(base_url: &str, api_key: &str, user_id: &str, days: i64) -> Result<Vec<DailyExtended>, String> {
     let c = client(api_key)?;
-    let end = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let start = (chrono::Utc::now() - chrono::Duration::days(days)).format("%Y-%m-%d").to_string();
+    let end = local_today();
+    let start = local_days_ago(days);
     let resp = c.get(format!("{base_url}/api/v1/users/{user_id}/daily-extended"))
         .query(&[("start", &start), ("end", &end)])
         .send().await.map_err(|e| format!("{e}"))?;
