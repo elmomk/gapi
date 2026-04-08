@@ -182,7 +182,12 @@ pub fn DashboardPage() -> impl IntoView {
                     </div>
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                         <VitalCard label="Stress" value=v.avg_stress.map(|x| x as f64) unit="" baseline=v.baseline_stress higher_is_better=false color=theme::STRESS_MEDIUM />
-                        <VitalCard label="Body Battery" value=v.body_battery_high.map(|x| x as f64) unit="%" baseline=v.baseline_battery higher_is_better=true color=theme::BB_CHARGED />
+                        <VitalCard label="Body Battery" value={
+                            let latest_bb = state.intraday_stress.get().iter().rev()
+                                .find_map(|p| p.body_battery)
+                                .map(|x| x as f64);
+                            latest_bb.or(v.body_battery_high.map(|x| x as f64))
+                        } unit="%" baseline=v.baseline_battery higher_is_better=true color=theme::BB_CHARGED />
                         <VitalCard label="Readiness" value=v.training_readiness unit="" baseline=None higher_is_better=true color=theme::CHART_BLUE />
                         <VitalCard label="Steps" value=v.steps.map(|x| x as f64) unit="" baseline=None higher_is_better=true color=theme::CHART_GREEN />
                     </div>
