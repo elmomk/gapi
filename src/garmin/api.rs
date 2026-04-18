@@ -484,17 +484,29 @@ pub async fn fetch_all_daily_data(
     if let Ok(v) = bb_res
         && let Some(entries) = v.as_array()
             && let Some(entry) = entries.first() {
-                data.body_battery_charge = json_i64(&entry["charged"])
-                    .or_else(|| json_i64(&entry["bodyBatteryChargedValue"]));
-                data.body_battery_drain = json_i64(&entry["drained"])
-                    .or_else(|| json_i64(&entry["bodyBatteryDrainedValue"]));
+                if let Some(charge) = json_i64(&entry["charged"])
+                    .or_else(|| json_i64(&entry["bodyBatteryChargedValue"])) {
+                    data.body_battery_charge = Some(data.body_battery_charge.map_or(charge, |prev| prev.max(charge)));
+                }
+                if let Some(drain) = json_i64(&entry["drained"])
+                    .or_else(|| json_i64(&entry["bodyBatteryDrainedValue"])) {
+                    data.body_battery_drain = Some(data.body_battery_drain.map_or(drain, |prev| prev.min(drain)));
+                }
                 if let Some(high) = json_i64(&entry["bodyBatteryHighValue"])
                     .or_else(|| json_i64(&entry["highValue"])) {
-                    data.body_battery_high = Some(high);
+                    let prev = data.body_battery_high;
+                    data.body_battery_high = Some(prev.map_or(high, |p| p.max(high)));
+                    if let Some(p) = prev && p != high {
+                        tracing::debug!("body battery high: summary={p} report={high} → using {}", data.body_battery_high.unwrap());
+                    }
                 }
                 if let Some(low) = json_i64(&entry["bodyBatteryLowValue"])
                     .or_else(|| json_i64(&entry["lowValue"])) {
-                    data.body_battery_low = Some(low);
+                    let prev = data.body_battery_low;
+                    data.body_battery_low = Some(prev.map_or(low, |p| p.min(low)));
+                    if let Some(p) = prev && p != low {
+                        tracing::debug!("body battery low: summary={p} report={low} → using {}", data.body_battery_low.unwrap());
+                    }
                 }
             }
 
@@ -529,12 +541,16 @@ pub async fn fetch_all_daily_data(
                 }
     }
 
-    // 8. SpO2
+    // 8. SpO2 — dedicated endpoint; prefer it over summary but don't discard a better value
     if let Ok(v) = spo2_res {
-        data.avg_spo2 = v["averageSPO2"].as_f64()
-            .or_else(|| v["averageSpO2"].as_f64());
-        data.lowest_spo2 = v["lowestSPO2"].as_f64()
-            .or_else(|| v["lowestSpO2"].as_f64());
+        if let Some(avg) = v["averageSPO2"].as_f64()
+            .or_else(|| v["averageSpO2"].as_f64()) {
+            data.avg_spo2 = Some(data.avg_spo2.map_or(avg, |prev| prev.max(avg)));
+        }
+        if let Some(low) = v["lowestSPO2"].as_f64()
+            .or_else(|| v["lowestSpO2"].as_f64()) {
+            data.lowest_spo2 = Some(data.lowest_spo2.map_or(low, |prev| prev.min(low)));
+        }
     }
 
     // 9. Respiration
