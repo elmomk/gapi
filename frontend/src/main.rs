@@ -8,6 +8,7 @@ mod state;
 use leptos::prelude::*;
 use leptos_router::components::*;
 use leptos_router::path;
+use leptos_router::hooks::use_location;
 use chrono::NaiveDate;
 use pages::*;
 use state::AppState;
@@ -63,7 +64,7 @@ fn Layout(children: Children) -> impl IntoView {
                 <div class="fixed top-0 left-0 right-0 z-50 loading-bar"></div>
             </Show>
 
-            <nav class="hidden md:flex flex-col w-[60px] hover:w-[200px] transition-all duration-200 border-r border-border bg-bg fixed h-full z-30 group overflow-hidden">
+            <nav class="hidden md:flex flex-col w-[60px] hover:w-[200px] border-r border-border bg-bg fixed h-full z-30 group overflow-hidden" style="transition: width 200ms cubic-bezier(0.23, 1, 0.32, 1)">
                 <div class="p-3 mb-4 mt-4">
                     <div class="w-9 h-9 rounded-lg flex items-center justify-center glow-cyan">
                         <svg viewBox="0 0 24 24" class="w-5 h-5 text-accent" fill="none" stroke="currentColor" stroke-width="2">
@@ -80,7 +81,7 @@ fn Layout(children: Children) -> impl IntoView {
                 <header class="sticky top-0 z-20 border-b border-border bg-bg px-4 py-3">
                     <div class="flex items-center justify-between max-w-screen-2xl mx-auto">
                         <div class="flex items-center gap-3">
-                            <button class="md:hidden p-2 text-dim hover:text-text"
+                            <button class="md:hidden p-2 text-dim hover:text-text pressable"
                                 on:click=move |_| set_mobile_nav_open.set(!mobile_nav_open.get())>
                                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
                                     <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
@@ -124,7 +125,7 @@ fn Layout(children: Children) -> impl IntoView {
                             }}
                             <div class="flex items-center gap-1 hidden sm:flex">
                                 <button
-                                    class="text-dim hover:text-text transition-colors px-1"
+                                    class="text-dim hover:text-text pressable px-1"
                                     on:click=move |_| {
                                         let current = state.selected_date.get();
                                         if let Some(d) = NaiveDate::parse_from_str(&current, "%Y-%m-%d").ok() {
@@ -210,7 +211,7 @@ fn Layout(children: Children) -> impl IntoView {
                                     })}
                                 </div>
                             })}
-                            <a href="/settings" class="p-2 text-dim hover:text-text transition-colors">
+                            <a href="/settings" class="p-2 text-dim hover:text-text pressable">
                                 <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
                                     <circle cx="12" cy="12" r="3" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
                                 </svg>
@@ -222,8 +223,8 @@ fn Layout(children: Children) -> impl IntoView {
                 // Mobile slide-out nav
                 <Show when=move || mobile_nav_open.get()>
                     <div class="fixed inset-0 z-40 md:hidden">
-                        <div class="absolute inset-0 bg-black/50" on:click=move |_| set_mobile_nav_open.set(false)></div>
-                        <nav class="absolute left-0 top-0 h-full w-64 bg-bg border-r border-white/[0.06] p-4 animate-fade-in">
+                        <div class="absolute inset-0 bg-black/50 mobile-nav-backdrop" on:click=move |_| set_mobile_nav_open.set(false)></div>
+                        <nav class="absolute left-0 top-0 h-full w-64 bg-bg border-r border-white/[0.06] p-4 mobile-nav-panel">
                             <div class="font-display font-bold text-accent text-lg mb-6">"Garmin Dashboard"</div>
                             <div on:click=move |_| set_mobile_nav_open.set(false)>
                                 <NavItems />
@@ -289,8 +290,19 @@ fn NavIcon(icon: &'static str) -> impl IntoView {
 
 #[component]
 fn BottomNavItem(href: &'static str, icon: &'static str, label: &'static str) -> impl IntoView {
+    let location = use_location();
+    let is_active = move || {
+        let path = location.pathname.get();
+        if href == "/" { path == "/" } else { path.starts_with(href) }
+    };
+
     view! {
-        <a href=href class="flex flex-col items-center gap-0.5 px-3 py-1 text-dim hover:text-accent transition-colors">
+        <a href=href
+            class="flex flex-col items-center gap-0.5 px-3 py-1 bottom-nav-item"
+            class:active=is_active
+            class:text-dim=move || !is_active()
+            class:text-accent=is_active
+        >
             <NavIcon icon=icon />
             <span class="text-[0.6rem]">{label}</span>
         </a>

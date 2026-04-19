@@ -139,12 +139,12 @@ pub fn DashboardPage() -> impl IntoView {
                             (theme::WARN, "Low Recovery")
                         };
                         view! {
-                            <div class="card mb-6" style=format!("border-left: 3px solid {}", color)>
+                            <div class="card-hero mb-6" style=format!("border-left: 3px solid {}; --hero-tint: {}", color, color)>
                                 <div class="flex items-center justify-between">
                                     <div>
                                         <div class="metric-label mb-1">"Recovery Score"</div>
                                         <div class="flex items-baseline gap-2">
-                                            <span class="text-4xl font-display font-bold" style=format!("color: {}", color)>
+                                            <span class="metric-value-hero" style=format!("color: {}; text-shadow: 0 0 20px {}40", color, color)>
                                                 {format!("{:.0}", score)}
                                             </span>
                                             <span class="text-dim text-sm font-display">"/100"</span>
@@ -174,13 +174,11 @@ pub fn DashboardPage() -> impl IntoView {
             // Vitals grid (2 rows of 4)
             {move || state.vitals.get().map(|v| {
                 view! {
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6 vitals-stagger">
                         <VitalCard label="HRV" value=v.hrv_last_night unit="ms" baseline=v.baseline_hrv higher_is_better=true color=theme::CHART_GREEN />
                         <VitalCard label="Resting HR" value=v.resting_heart_rate.map(|x| x as f64) unit="bpm" baseline=v.baseline_rhr higher_is_better=false color=theme::CHART_RED />
                         <VitalCard label="Sleep Score" value=v.sleep_score.map(|x| x as f64) unit="" baseline=v.baseline_sleep higher_is_better=true color=theme::CHART_PURPLE />
                         <VitalCard label="Sleep" value=v.sleep_hours unit="hrs" baseline=None higher_is_better=true color=theme::CHART_BLUE />
-                    </div>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
                         <VitalCard label="Stress" value=v.avg_stress.map(|x| x as f64) unit="" baseline=v.baseline_stress higher_is_better=false color=theme::STRESS_MEDIUM />
                         <VitalCard label="Body Battery" value={
                             let latest_bb = state.intraday_stress.get().iter().rev()
@@ -206,7 +204,7 @@ pub fn DashboardPage() -> impl IntoView {
                 if !has_any { return view! { <div></div> }.into_any(); }
 
                 view! {
-                    <div class="flex flex-wrap gap-3 mb-6">
+                    <div class="flex flex-wrap gap-4 mb-6">
                         {hrv_status.map(|status| {
                             let color = match status.as_str() {
                                 "BALANCED" | "HIGH" => theme::GOOD,
@@ -274,7 +272,7 @@ pub fn DashboardPage() -> impl IntoView {
                                 {alerts.into_iter().map(|(msg, severity)| {
                                     let color = if severity == "warn" { theme::WARN } else { theme::INFO };
                                     view! {
-                                        <div class="card" style=format!("border-left: 3px solid {}", color)>
+                                        <div class="card alert-pulse" style=format!("border-left: 3px solid {}; --alert-color: {}", color, color)>
                                             <span class="text-sm" style=format!("color: {}", color)>{msg}</span>
                                         </div>
                                     }
